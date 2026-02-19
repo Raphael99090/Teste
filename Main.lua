@@ -6,6 +6,7 @@
 -- 1. BASE URL (Onde estão seus arquivos)
 local BaseURL = "https://raw.githubusercontent.com/Raphael99090/Teste/main/"
 
+
 -- Função para carregar módulos da nuvem
 local function Import(Asset)
     local Success, Result = pcall(function()
