@@ -1,35 +1,41 @@
 --[[
-    1NXITER TRAINER - LOADER (V11)
-    Repositório: GitHub/Raphael99090
+    1NXITER TRAINER - MODULAR LOADER
+    Repositório: Raphael99090/Teste
 ]]
 
--- 1. CONFIGURAÇÃO DO REPOSITÓRIO
-local Repo = "https://raw.githubusercontent.com/Raphael99090/1NXXiter-lib/refs/heads/main/"
+-- 1. BASE URL (Onde estão seus arquivos)
+local BaseURL = "https://raw.githubusercontent.com/Raphael99090/Teste/main/"
 
--- Função de Carregamento Seguro
-local function LoadModule(name)
-    local url = Repo .. name .. ".lua"
-    local success, result = pcall(function()
-        return loadstring(game:HttpGet(url))()
+-- Função para carregar módulos da nuvem
+local function Import(Asset)
+    local Success, Result = pcall(function()
+        return loadstring(game:HttpGet(BaseURL .. Asset .. ".lua"))()
     end)
-    if not success then
-        warn("[1NX LOADER] Erro ao carregar " .. name .. ": " .. tostring(result))
+    if not Success then
+        warn("[1NX LOADER] Falha ao carregar: " .. Asset)
+        print(Result) -- Mostra o erro no console (F9)
         return nil
     end
-    return result
+    return Result
 end
 
--- 2. CARREGAR MÓDULOS
-local Library = LoadModule("Library") -- A sua lib de UI (Crimson)
-local Utils   = LoadModule("Utils")
-local Logic   = LoadModule("Logic")
-local UI      = LoadModule("Interface")
+-- 2. IMPORTAR MÓDULOS
+-- OBS: Certifique-se de upar o arquivo 'Library.lua' no repositório também!
+-- Se não quiser upar, troque a linha abaixo pelo link antigo da lib.
+local Library = Import("Library") 
+local Utils   = Import("Utils")
+local Logic   = Import("Logic")
+local Interface = Import("Interface")
 
-if not Library or not Utils or not Logic or not UI then
-    return game.StarterGui:SetCore("SendNotification", {Title="ERRO", Text="Falha ao baixar módulos do GitHub!"})
+-- Verifica se tudo carregou
+if not Library or not Utils or not Logic or not Interface then
+    return game.StarterGui:SetCore("SendNotification", {
+        Title = "ERRO CRÍTICO",
+        Text = "Faltam arquivos no GitHub! (Verifique Library.lua)"
+    })
 end
 
--- 3. ESTADO GLOBAL (Shared State)
+-- 3. ESTADO GLOBAL (Compartilhado entre os módulos)
 local Config = {
     Mode = "Canguru",
     Delay = 1.4,
@@ -46,11 +52,11 @@ local State = {
     IsActive = true
 }
 
--- 4. INICIALIZAÇÃO
+-- 4. INICIALIZAÇÃO DE SISTEMAS
 Utils:AntiAFK(State)
 Utils:AutoRejoin(Config)
 
--- Iniciar Interface
-UI:Load(Library, Config, State, Utils, Logic)
+-- 5. CARREGAR UI
+Interface:Load(Library, Config, State, Utils, Logic)
 
-print("[1NXITER] Sistema carregado com sucesso (Modular).")
+print("[1NX] Sistema Modular Carregado com Sucesso!")
