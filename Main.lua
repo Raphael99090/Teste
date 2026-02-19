@@ -1,6 +1,5 @@
 --[[
     1NXITER TRAINER - LOADER
-    Preencha os links RAW abaixo
 ]]
 
 local Links = {
