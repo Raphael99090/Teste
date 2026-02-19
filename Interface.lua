@@ -8,7 +8,7 @@ function Interface:Load(Library, Config, State, Utils, Logic)
     local TabExtra = Window:CriarAba("🚀", "Extras")
     local TabProf = Window:CriarAba("👤", "Perfil")
 
-    -- [HOME]
+    --
     local LblCount = TabHome:CriarLabel("AGUARDANDO...", Color3.fromRGB(255,45,45))
     local LblETA = TabHome:CriarLabel("TEMPO: --:--", Color3.fromRGB(255, 215, 0))
 
@@ -69,23 +69,33 @@ function Interface:Load(Library, Config, State, Utils, Logic)
         end)
     end)
 
-    -- [CONFIG]
+    --
     TabConf:CriarInput("Número Inicial", "0", function(v) Config.StartNum = tonumber(v) or 0 end)
     TabConf:CriarInput("Quantidade", "130", function(v) Config.Quantity = tonumber(v) or 130 end)
     TabConf:CriarSlider("Velocidade (Delay)", 0.5, 5.0, 1.4, function(v) Config.Delay = v end)
     TabConf:CriarToggle("Contagem Regressiva", false, function(v) Config.IsCountdown = v end)
     TabConf:CriarToggle("Auto Agachar (Canguru)", false, function(v) Config.AutoCrouch = v end)
 
-    -- [EXTRAS]
+    --
     TabExtra:CriarToggle("Auto Equipar", false, function(v) Config.AutoEquip = v end)
     TabExtra:CriarToggle("Auto Rejoin", false, function(v) Config.AutoRejoin = v end)
     TabExtra:CriarBotao("ANTI-LAG (TEXTURAS OFF)", function() Utils:AntiLag(); Library:Notificar("Otimização", "Gráficos reduzidos.", 3) end)
 
-    -- [PERFIL]
+    --
     TabProf:CriarPerfil()
+    
     TabProf:CriarBotao("PANIC (FECHAR)", function()
         State.IsActive = false
-        game.CoreGui["CrimsonUI"]:Destroy()
+        
+        -- Busca a GUI onde quer que o executor tenha escondido e a destrói de forma segura
+        local TargetGui = (gethui and pcall(gethui) and gethui()) or game:GetService("CoreGui"):FindFirstChild("RobloxGui") or game:GetService("CoreGui")
+        
+        if TargetGui:FindFirstChild("CrimsonUI") then 
+            TargetGui.CrimsonUI:Destroy() 
+        end
+        if game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("CrimsonUI") then 
+            game:GetService("Players").LocalPlayer.PlayerGui.CrimsonUI:Destroy() 
+        end
     end)
 end
 
