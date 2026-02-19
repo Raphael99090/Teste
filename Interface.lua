@@ -1,58 +1,74 @@
 local Interface = {}
 
 function Interface:Load(Library, Config, State, Utils, Logic)
-    local Window = Library:CriarJanela("1NXITER TRAINER")
+    print("[1NX] Carregando Interface...")
 
-    local TabHome = Window:CriarAba("⚔", "Principal")
-    local TabConf = Window:CriarAba("⚙", "Ajustes")
-    local TabExtra = Window:CriarAba("🚀", "Extras")
-    local TabProf = Window:CriarAba("👤", "Perfil")
+    -- 1. Cria a Janela
+    local Win = Library:CriarJanela("1NXITER TRAINER")
+    if not Win then return warn("[1NX] Falha ao criar janela!") end
 
-    -- [HOME]
-    local LblCount = TabHome:CriarLabel("AGUARDANDO...", Color3.fromRGB(255,45,45))
-    local LblETA = TabHome:CriarLabel("TEMPO: --:--", Color3.fromRGB(255, 215, 0))
+    -- 2. Cria as Abas
+    local Home = Win:CriarAba("⚔", "Inicio")
+    local Conf = Win:CriarAba("⚙", "Config")
+    local Extra = Win:CriarAba("🚀", "Extras")
+    local Prof = Win:CriarAba("👤", "Perfil")
 
-    TabHome:CriarDropdown("Modo de Treino", {"Canguru", "Flexão", "Polichinelo"}, function(v)
-        Config.Mode = v
+    -- 3. Preenche a Aba HOME
+    local LblCount = Home:CriarLabel("AGUARDANDO...", Color3.fromRGB(255,45,45))
+    
+    Home:CriarDropdown("Modo de Treino", {"Canguru", "Flexão", "Polichinelo"}, function(v) 
+        Config.Mode = v 
     end)
 
     local BtnStart
-    BtnStart = TabHome:CriarBotao("INICIAR TREINO", function()
+    BtnStart = Home:CriarBotao("INICIAR TREINO", function()
         if State.IsRunning then
             State.IsRunning = false
             BtnStart("INICIAR TREINO")
-            LblETA("TEMPO: PARADO")
-            Library:Notificar("Status", "Pausado pelo usuário.", 2, "aviso")
+            Library:Notificar("Status", "Parado.", 2)
             return
         end
 
         State.IsRunning = true
         BtnStart("PARAR TREINO")
-        Library:Notificar("Iniciado", "Contagem iniciada...", 2)
+        Library:Notificar("Status", "Iniciando...", 2)
 
         task.spawn(function()
             local start = Config.StartNum
             local qtd = Config.Quantity
-            local step = Config.IsCountdown and -1 or 1
-            local finish = Config.IsCountdown and (start - qtd + 1) or (start + qtd - 1)
+            
+            -- Lógica Simples de Contagem
+            local final = start + qtd
+            if Config.IsCountdown then final = start - qtd end
+            
+            local step = 1
+            if Config.IsCountdown then step = -1 end
 
-            for i = start, finish, step do
+            -- Loop de Treino
+            for i = start, final, step do
                 if not State.IsRunning or not State.IsActive then break end
-
-                LblCount(tostring(i))
                 
-                -- Enviar Chat
-                local msg = Utils:NumberToText(i) .. " !"
+                -- Atualiza Visual
+                LblCount("CONTANDO: " .. tostring(i))
+                
+                -- Envia Chat (Usando Utils se disponível, ou direto)
+                local texto = tostring(i)
+                if Utils and Utils.NumberToText then texto = Utils:NumberToText(i) end
+                
+                local msg = texto .. " !"
+                
                 if game:GetService("TextChatService").ChatInputBarConfiguration.TargetTextChannel then
                     game:GetService("TextChatService").ChatInputBarConfiguration.TargetTextChannel:SendAsync(msg)
                 else
                     game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(msg, "All")
                 end
 
-                -- Executar Física
-                Logic:ExecutePhysics(Config, State)
+                -- Executa Física
+                if Logic and Logic.ExecutePhysics then
+                    Logic:ExecutePhysics(Config, State)
+                end
 
-                -- Delay Inteligente
+                -- Delay
                 local d = Config.Delay
                 if Config.Mode == "Canguru" then d = d - 0.3 end
                 if d < 0 then d = 0 end
@@ -62,31 +78,36 @@ function Interface:Load(Library, Config, State, Utils, Logic)
             State.IsRunning = false
             if State.IsActive then
                 BtnStart("INICIAR TREINO")
-                LblCount("FIM")
-                LblETA("CONCLUÍDO")
-                Library:Notificar("Sucesso", "Treino finalizado!", 5)
+                LblCount("TREINO FINALIZADO")
+                Library:Notificar("Sucesso", "Fim do treino!", 5)
             end
         end)
     end)
 
-    -- [CONFIG]
-    TabConf:CriarInput("Número Inicial", "0", function(v) Config.StartNum = tonumber(v) or 0 end)
-    TabConf:CriarInput("Quantidade", "130", function(v) Config.Quantity = tonumber(v) or 130 end)
-    TabConf:CriarSlider("Velocidade (Delay)", 0.5, 5.0, 1.4, function(v) Config.Delay = v end)
-    TabConf:CriarToggle("Contagem Regressiva", false, function(v) Config.IsCountdown = v end)
-    TabConf:CriarToggle("Auto Agachar (Canguru)", false, function(v) Config.AutoCrouch = v end)
+    -- 4. Preenche a Aba CONFIG
+    Conf:CriarInput("Número Inicial", "0", function(v) Config.StartNum = tonumber(v) or 0 end)
+    Conf:CriarInput("Quantidade", "130", function(v) Config.Quantity = tonumber(v) or 130 end)
+    Conf:CriarSlider("Velocidade (Delay)", 0.5, 5.0, 1.4, function(v) Config.Delay = v end)
+    Conf:CriarToggle("Contagem Regressiva", false, function(v) Config.IsCountdown = v end)
+    Conf:CriarToggle("Auto Agachar (Canguru)", false, function(v) Config.AutoCrouch = v end)
 
-    -- [EXTRAS]
-    TabExtra:CriarToggle("Auto Equipar", false, function(v) Config.AutoEquip = v end)
-    TabExtra:CriarToggle("Auto Rejoin", false, function(v) Config.AutoRejoin = v end)
-    TabExtra:CriarBotao("ANTI-LAG (TEXTURAS OFF)", function() Utils:AntiLag(); Library:Notificar("Otimização", "Gráficos reduzidos.", 3) end)
-
-    -- [PERFIL]
-    TabProf:CriarPerfil()
-    TabProf:CriarBotao("PANIC (FECHAR)", function()
-        State.IsActive = false
-        game.CoreGui["CrimsonUI"]:Destroy()
+    -- 5. Preenche a Aba EXTRAS
+    Extra:CriarToggle("Auto Equipar", false, function(v) Config.AutoEquip = v end)
+    Extra:CriarToggle("Auto Rejoin", false, function(v) Config.AutoRejoin = v end)
+    Extra:CriarBotao("ANTI-LAG (BATATA)", function() 
+        if Utils and Utils.AntiLag then Utils:AntiLag() end
+        Library:Notificar("GPU", "Gráficos Reduzidos", 3) 
     end)
+
+    -- 6. Preenche a Aba PERFIL
+    Prof:CriarPerfil()
+    Prof:CriarBotao("PANIC (FECHAR TUDO)", function()
+        State.IsActive = false
+        if game.CoreGui:FindFirstChild("CrimsonUI") then game.CoreGui.CrimsonUI:Destroy() end
+        if game.Players.LocalPlayer.PlayerGui:FindFirstChild("CrimsonUI") then game.Players.LocalPlayer.PlayerGui.CrimsonUI:Destroy() end
+    end)
+    
+    print("[1NX] Interface carregada com sucesso!")
 end
 
 return Interface
