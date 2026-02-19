@@ -184,8 +184,20 @@ function Library:CriarJanela(title)
     local NotifList = Instance.new("UIListLayout", NotifContainer); NotifList.Padding = UDim.new(0, 10); NotifList.VerticalAlignment = Enum.VerticalAlignment.Top
 
     -- Bubble
-    local Bubble = Instance.new("TextButton", ScreenGui); Bubble.Size = UDim2.new(0, 50, 0, 50); Bubble.Position = UDim2.new(0, 50, 0, 100); Bubble.BackgroundColor3 = Library.Theme.Header; Bubble.Text = "CRM"; Bubble.TextColor3 = Library.Theme.Text; Bubble.Font = Enum.Font.GothamBlack; Bubble.Visible = false
-    Library.Utils.AddCorner(Bubble, 100); Library.Utils.AddStroke(Bubble, Library.Theme.Text, 2); Library.Utils.MakeDraggable(Bubble)
+    
+    local Bubble = Instance.new("ImageButton", ScreenGui)
+    Bubble.Name = "LogoMinimizado"
+    Bubble.Size = UDim2.new(0, 50, 0, 50)
+    Bubble.Position = UDim2.new(0, 50, 0, 100)
+    Bubble.BackgroundColor3 = Library.Theme.Header
+    Bubble.Image = "rbxassetid://136644425560507"
+    Bubble.ScaleType = Enum.ScaleType.Fit
+    Bubble.Visible = false
+    
+    Library.Utils.AddCorner(Bubble, 100)
+    Library.Utils.AddStroke(Bubble, Library.Theme.Text, 2)
+    Library.Utils.MakeDraggable(Bubble)
+    
 
     -- Main
     local Main = Instance.new("Frame", ScreenGui); Main.Size = UDim2.new(0, 550, 0, 400); Main.Position = UDim2.new(0.5, -275, 0.5, -200); Main.BackgroundColor3 = Library.Theme.Background; Main.ClipsDescendants = true
