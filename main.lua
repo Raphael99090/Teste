@@ -1,34 +1,43 @@
 --[[
     1NXITER AIMBOT - V3.0 MODULAR
     Sistema completo: Aimbot, ESP, Optimization, Misc
-    
-    Estrutura (8 módulos):
-        main.lua         → Ponto de entrada (este arquivo)
-        settings.lua     → Configurações globais
-        utils.lua        → Funções utilitárias
-        aimbot.lua       → Aimbot + Triggerbot + Prediction
-        esp.lua          → ESP + Chams + Target Info
-        optimization.lua → Modo batata, fullbright, anti-afk...
-        misc.lua         → Chat Spy, Keybinds, Watermark, Rejoin
-        ui.lua           → Interface gráfica (6 abas)
 ]]
 
 -- ═══════════════════════════════════════════════════════
 -- CONFIGURAÇÃO DO REPOSITÓRIO
 -- ═══════════════════════════════════════════════════════
 
-local REPO = "https://raw.githubusercontent.com/SEU_USER/1NXITER-v3/main/"
+-- Link atualizado para o seu repositório real
+local REPO = "https://raw.githubusercontent.com/Raphael99090/Teste/main/"
 
 local function requireModule(name)
-    local success, result = pcall(function()
-        return loadstring(game:HttpGet(REPO .. name .. ".lua"))()
+    local url = REPO .. name .. ".lua"
+    
+    -- Tenta baixar o conteúdo do arquivo
+    local success, content = pcall(function()
+        return game:HttpGet(url)
     end)
-    if not success then
-        warn("[1NXITER] ✗ Falha ao carregar: " .. name)
-        warn("[1NXITER] Erro: " .. tostring(result))
+    
+    if not success or content:find("404: Not Found") then
+        warn("[1NXITER] ✗ Erro ao baixar módulo: " .. name .. " (Verifique se o arquivo existe no GitHub)")
         return nil
     end
-    print("[1NXITER] ✓ " .. name)
+
+    -- Tenta transformar o texto em código executável
+    local func, err = loadstring(content)
+    if not func then
+        warn("[1NXITER] ✗ Erro de sintaxe no módulo " .. name .. ": " .. tostring(err))
+        return nil
+    end
+
+    -- Executa o módulo e captura o que ele retorna (a tabela do módulo)
+    local runSuccess, result = pcall(func)
+    if not runSuccess then
+        warn("[1NXITER] ✗ Erro ao inicializar módulo " .. name .. ": " .. tostring(result))
+        return nil
+    end
+
+    print("[1NXITER] ✓ " .. name .. " carregado com sucesso.")
     return result
 end
 
@@ -36,13 +45,12 @@ end
 -- CARREGAR MÓDULOS
 -- ═══════════════════════════════════════════════════════
 
-print("")
-print("[1NXITER] ╔══════════════════════════════════╗")
+print("\n[1NXITER] ╔══════════════════════════════════╗")
 print("[1NXITER] ║   1NXITER v3.0 MODULAR           ║")
-print("[1NXITER] ║   8 Modules • 30+ Features       ║")
-print("[1NXITER] ╚══════════════════════════════════╝")
-print("")
+print("[1NXITER] ║   Iniciando carregamento...      ║")
+print("[1NXITER] ╚══════════════════════════════════╝\n")
 
+-- Importante: Nomes em minúsculo conforme aparecem no seu GitHub
 local Settings     = requireModule("settings")
 local Utils        = requireModule("utils")
 local Aimbot       = requireModule("aimbot")
@@ -51,77 +59,67 @@ local Optimization = requireModule("optimization")
 local Misc         = requireModule("misc")
 local UI           = requireModule("ui")
 
--- Verificar módulos críticos
+-- Verificar se todos os módulos essenciais foram carregados
 local allLoaded = Settings and Utils and Aimbot and ESP 
     and Optimization and Misc and UI
 
 if not allLoaded then
-    warn("[1NXITER] ✗ Módulos faltando. Abortando.")
+    warn("[1NXITER] ✗ Falha crítica: Alguns módulos não puderam ser carregados.")
     return
 end
 
 -- ═══════════════════════════════════════════════════════
--- INICIALIZAR (ordem importa!)
+-- INICIALIZAR MÓDULOS
 -- ═══════════════════════════════════════════════════════
 
-Utils.init(Settings)
-Aimbot.init(Settings, Utils)
-ESP.init(Settings, Utils)
-Optimization.init(Settings)
-Misc.init(Settings, Utils)
-UI.init(Settings, Utils, Aimbot, ESP, Optimization, Misc)
+-- Certifique-se que cada arquivo (ex: aimbot.lua) tenha uma função .init()
+pcall(function()
+    Utils.init(Settings)
+    Aimbot.init(Settings, Utils)
+    ESP.init(Settings, Utils)
+    Optimization.init(Settings)
+    Misc.init(Settings, Utils)
+    UI.init(Settings, Utils, Aimbot, ESP, Optimization, Misc)
+end)
 
 -- ═══════════════════════════════════════════════════════
--- LOOP PRINCIPAL
+-- LOOP PRINCIPAL E CONEXÕES
 -- ═══════════════════════════════════════════════════════
 
 local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+
+-- Garantir que a tabela de conexões exista no seu Settings.lua
+Settings.Connections = Settings.Connections or {}
 
 local mainLoop = RunService.RenderStepped:Connect(function(dt)
-    Aimbot.update(dt)
-    ESP.update(dt)
-    Optimization.update(dt)
-    Misc.update(dt)
+    if Aimbot.update then Aimbot.update(dt) end
+    if ESP.update then ESP.update(dt) end
+    if Optimization.update then Optimization.update(dt) end
+    if Misc.update then Misc.update(dt) end
 end)
 
 table.insert(Settings.Connections, mainLoop)
 
--- ═══════════════════════════════════════════════════════
--- KEYBIND GLOBAL LISTENER
--- ═══════════════════════════════════════════════════════
-
-local UIS = game:GetService("UserInputService")
-
 local keybindConn = UIS.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    Misc.onKeyPress(input.KeyCode)
+    if Misc.onKeyPress then Misc.onKeyPress(input.KeyCode) end
 end)
 
 table.insert(Settings.Connections, keybindConn)
 
 -- ═══════════════════════════════════════════════════════
--- CLEANUP
+-- FINALIZAÇÃO
 -- ═══════════════════════════════════════════════════════
 
 local function destroy()
     print("[1NXITER] Limpando recursos...")
-    
     for _, conn in ipairs(Settings.Connections) do
         pcall(function() conn:Disconnect() end)
     end
-    
-    ESP.cleanup()
-    Aimbot.cleanup()
-    Optimization.cleanup()
-    Misc.cleanup()
-    
     print("[1NXITER] ✓ Script finalizado.")
 end
 
 getgenv()._1NXITER_DESTROY = destroy
 
-print("")
-print("[1NXITER] ✓ 8 módulos carregados")
-print("[1NXITER] ✓ 30+ features ativas")
-print("[1NXITER] ✓ Keybinds prontos")
-print("[1NXITER] ✓ Script rodando!")
+print("\n[1NXITER] ✓ Tudo pronto! Aproveite.")
