@@ -1,6 +1,6 @@
 --[[
     1NXITER AIMBOT - V3.0 MODULAR
-    Sistema completo: Aimbot, ESP, Optimization, Misc
+    Sistema completo: Aimbot, ESP, Optimization, Misc, UI
 ]]
 
 -- ═══════════════════════════════════════════════════════
@@ -69,17 +69,33 @@ if not allLoaded then
 end
 
 -- ═══════════════════════════════════════════════════════
--- INICIALIZAR MÓDULOS
+-- INICIALIZAR MÓDULOS E INTERFACE
 -- ═══════════════════════════════════════════════════════
 
--- Certifique-se que cada arquivo (ex: aimbot.lua) tenha uma função .init()
+-- 1. Baixar a Library Visual (Crimson UI)
+local libSuccess, Library = pcall(function()
+    return loadstring(game:HttpGet("https://raw.githubusercontent.com/Raphael99090/1NXXiter-lib/main/Crimsom%20ui%20lib.lua"))()
+end)
+
+if not libSuccess or type(Library) ~= "table" then
+    warn("[1NXITER] ✗ Falha ao carregar a Crimson UI Library do GitHub.")
+    return
+end
+
+-- 2. Configuração de Estado para o Treino (usado no ui.lua)
+local State = { IsRunning = false, IsActive = true }
+
+-- 3. Inicializar os módulos técnicos
 pcall(function()
-    Utils.init(Settings)
-    Aimbot.init(Settings, Utils)
-    ESP.init(Settings, Utils)
-    Optimization.init(Settings)
-    Misc.init(Settings, Utils)
-    UI.init(Settings, Utils, Aimbot, ESP, Optimization, Misc)
+    if Utils.init then Utils.init(Settings) end
+    if Aimbot.init then Aimbot.init(Settings, Utils) end
+    if ESP.init then ESP.init(Settings, Utils) end
+    if Optimization.init then Optimization.init(Settings) end
+    if Misc.init then Misc.init(Settings, Utils) end
+    
+    -- 4. Inicializar a Interface usando o formato correto (:Load)
+    -- O 'Misc' foi passado como 'Logic' porque no seu UI original ele esperava um Logic
+    UI:Load(Library, Settings, State, Utils, Misc) 
 end)
 
 -- ═══════════════════════════════════════════════════════
