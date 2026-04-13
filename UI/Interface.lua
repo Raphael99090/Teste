@@ -90,11 +90,30 @@ function Interface:Load(Hub, Config, State)
     -- ==========================================
     --[ ABA 3: EXTRAS E TEMAS ]
     -- ==========================================
+    TabExtra:CriarLabel("---  INTELIGÊNCIA E ESPIONAGEM  ---", Color3.fromRGB(255, 80, 80))
+    
+    TabExtra:CriarToggle("FreeCam (Câmera Livre - PC)", false, function(v)
+        if Hub.Features.FreeCam then Hub.Features.FreeCam:Toggle(v) end
+    end)
+    
+    TabExtra:CriarSlider("Velocidade da FreeCam", 1, 10, 2, function(v)
+        if Hub.Features.FreeCam then Hub.Features.FreeCam.Settings.Speed = v end
+    end)
+
+    TabExtra:CriarToggle("Spy Chat (Ver Chat Oculto)", false, function(v)
+        if Hub.Features.SpyChat then Hub.Features.SpyChat:Toggle(v) end
+    end)
+
     TabExtra:CriarLabel("---  ESTILO DO MENU  ---", Color3.fromRGB(255, 215, 0))
     TabExtra:CriarDropdown("Tema da Interface", {"Crimson", "Neon Purple", "Ocean Blue", "Toxic Green", "Midnight Gold"}, function(temaEscolhido) 
         Hub.UI.Library:ChangeTheme(temaEscolhido)
         Hub.UI.Library:Notificar("Tema Alterado", "Menu atualizado para " .. temaEscolhido, 3) 
     end)
+
+    TabExtra:CriarLabel("---  UTILITÁRIOS  ---", Color3.fromRGB(245, 245, 245))
+    TabExtra:CriarToggle("Auto Equipar Arma (Treino)", false, function(v) Config.AutoEquip = v end)
+    TabExtra:CriarToggle("Auto Rejoin", false, function(v) Config.AutoRejoin = v end)
+    TabExtra:CriarBotao("ANTI-LAG (Remover Texturas)", function() Hub.Core.Utils:AntiLag(); Hub.UI.Library:Notificar("Otimização", "Gráficos reduzidos.", 3) end)
 
     TabExtra:CriarLabel("---  UTILITÁRIOS  ---", Color3.fromRGB(245, 245, 245))
     TabExtra:CriarToggle("Auto Equipar Arma (Treino)", false, function(v) Config.AutoEquip = v end)
