@@ -66,9 +66,14 @@ print("⏳ Carregando 1NXITER HUB v1.4.0...")
 local Hub = {
     Core = { Utils = Load("Core/Utils") },
     UI = { Library = Load("UI/Library"), Interface = Load("UI/Interface") },
-    Features = { AutoTrain = Load("Features/AutoTrain"), Aimbot = Load("Features/Aimbot"), ESP = Load("Features/ESP") }
+    Features = { 
+        AutoTrain = Load("Features/AutoTrain"), 
+        Aimbot = Load("Features/Aimbot"), 
+        ESP = Load("Features/ESP"),
+        SpyChat = Load("Features/SpyChat"), -- NOVO
+        FreeCam = Load("Features/FreeCam")  -- NOVO
+    }
 }
-
 -- Verifica se os módulos principais (UI) sobreviveram
 if type(Hub.UI.Library) == "table" and type(Hub.UI.Interface) == "table" then
     local Config = { Mode="Canguru", Delay=1.4, StartNum=0, Quantity=130, IsCountdown=false, AutoCrouch=false, AutoEquip=false, AutoRejoin=false }
