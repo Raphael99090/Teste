@@ -2,25 +2,38 @@ local Aimbot = {}
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
 
 local Camera = Workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
 Aimbot.Settings = { Enabled = false, ShowFOV = false, FOVRadius = 150, Smoothness = 0.5, HitboxExpander = false, HitboxSize = 10, TargetPart = "HumanoidRootPart" }
 
-local FOVCircle = Drawing.new("Circle")
-FOVCircle.Color = Color3.fromRGB(220, 20, 60)
-FOVCircle.Thickness = 1.5
-FOVCircle.Filled = false
-FOVCircle.Transparency = 1
-FOVCircle.Visible = false
+-- [SOLUÇÃO DEFINITIVA DO FOV MOBILE]: Usando uma Imagem em vez de UIStroke
+local FOVGui = Instance.new("ScreenGui")
+FOVGui.Name = "InxiterFOVMobile"
+FOVGui.ResetOnSpawn = false
+FOVGui.IgnoreGuiInset = true
+pcall(function() FOVGui.Parent = CoreGui end)
+if not FOVGui.Parent then FOVGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+local FOVImage = Instance.new("ImageLabel", FOVGui)
+FOVImage.AnchorPoint = Vector2.new(0.5, 0.5)
+FOVImage.Position = UDim2.new(0.5, 0, 0.5, 0)
+FOVImage.BackgroundTransparency = 1
+FOVImage.Image = "rbxassetid://231147101" -- ID de um círculo branco oco perfeito
+FOVImage.ImageColor3 = Color3.fromRGB(220, 20, 60)
+FOVImage.Visible = false
 
 local OriginalSizes = {}
 
 local function IsVisible(part)
-    local ray = RaycastParams.new(); ray.FilterDescendantsInstances = {LocalPlayer.Character, Camera}; ray.FilterType = Enum.RaycastFilterType.Exclude; ray.IgnoreWater = true
+    local ray = RaycastParams.new()
+    ray.FilterDescendantsInstances = {LocalPlayer.Character, Camera, part.Parent} -- Ignora paredes invisiveis do próprio alvo!
+    ray.FilterType = Enum.RaycastFilterType.Exclude
+    ray.IgnoreWater = true
     local result = Workspace:Raycast(Camera.CFrame.Position, part.Position - Camera.CFrame.Position, ray)
-    return (result and result.Instance and result.Instance:IsDescendantOf(part.Parent)) or not result
+    return not result -- Se não bater em nada, é porque está visível
 end
 
 local function GetClosestTarget()
@@ -47,10 +60,13 @@ local function GetClosestTarget()
 end
 
 RunService.RenderStepped:Connect(function()
-    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    FOVCircle.Position = screenCenter
-    FOVCircle.Radius = Aimbot.Settings.FOVRadius
-    FOVCircle.Visible = Aimbot.Settings.ShowFOV
+    -- Centraliza e atualiza o tamanho da Imagem do FOV
+    if Aimbot.Settings.ShowFOV then
+        FOVImage.Size = UDim2.new(0, Aimbot.Settings.FOVRadius * 2, 0, Aimbot.Settings.FOVRadius * 2)
+        FOVImage.Visible = true
+    else
+        FOVImage.Visible = false
+    end
 
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
