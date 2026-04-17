@@ -176,11 +176,7 @@ function Library.Window.Create(title)
         local Scr = Instance.new("ScrollingFrame", Cont); Scr.Size = UDim2.new(1, 0, 1, 0); Scr.BackgroundTransparency = 1; Scr.BorderSizePixel = 0; Scr.Visible = false; Scr.ScrollBarThickness = 2; Scr.ScrollBarImageColor3 = Library.Theme.Accent
         local CLay = Instance.new("UIListLayout", Scr); CLay.Padding = UDim.new(0, 6); CLay.SortOrder = Enum.SortOrder.LayoutOrder; local Pad = Instance.new("UIPadding", Scr); Pad.PaddingTop = UDim.new(0, 5); Pad.PaddingBottom = UDim.new(0, 5)
 
-        -- [CORREÇÃO AQUI]: Auto-Resize Dinâmico para o Scroll da tela
-        CLay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            Scr.CanvasSize = UDim2.new(0, 0, 0, CLay.AbsoluteContentSize.Y + 30) -- +30 garante um espaçozinho extra no final
-        end)
-        Scr.CanvasSize = UDim2.new(0, 0, 0, CLay.AbsoluteContentSize.Y + 30)
+        CLay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() Scr.CanvasSize = UDim2.new(0, 0, 0, CLay.AbsoluteContentSize.Y + 30) end)
 
         if first then Scr.Visible = true; Btn.TextColor3 = Library.Theme.Accent; first = false end
         Btn.MouseButton1Click:Connect(function() 
@@ -189,10 +185,7 @@ function Library.Window.Create(title)
         end)
         table.insert(tabs, {Scr = Scr, Btn = Btn, Tab = Tab})
 
-        table.insert(Library.ThemeUpdaters, function()
-            Library.Utils.Tween(Btn, {TextColor3 = Tab.IsActive and Library.Theme.Accent or Library.Theme.TextDim}, 0.3)
-            Library.Utils.Tween(Scr, {ScrollBarImageColor3 = Library.Theme.Accent}, 0.3)
-        end)
+        table.insert(Library.ThemeUpdaters, function() Library.Utils.Tween(Btn, {TextColor3 = Tab.IsActive and Library.Theme.Accent or Library.Theme.TextDim}, 0.3); Library.Utils.Tween(Scr, {ScrollBarImageColor3 = Library.Theme.Accent}, 0.3) end)
 
         function Tab:CriarBotao(t, c) return Library.Components.Button(Scr, t, c) end
         function Tab:CriarToggle(t, d, c) return Library.Components.Toggle(Scr, t, d, c) end
@@ -201,26 +194,27 @@ function Library.Window.Create(title)
         function Tab:CriarDropdown(t, o, c) return Library.Components.Dropdown(Scr, t, o, c) end
         function Tab:CriarLabel(t, c) 
             local L = Instance.new("TextLabel", Scr); L.Text = t; L.Size = UDim2.new(1, 0, 0, 30); L.BackgroundTransparency = 1; L.TextColor3 = c or Library.Theme.Text; L.Font = Enum.Font.GothamBold; L.TextSize = 14; L.TextYAlignment = Enum.TextYAlignment.Center
-            table.insert(Library.ThemeUpdaters, function() if L.Parent and not c then Library.Utils.Tween(L, {TextColor3 = Library.Theme.Text}, 0.3) end end)
-            return function(tx) L.Text = tx end 
+            table.insert(Library.ThemeUpdaters, function() if L.Parent and not c then Library.Utils.Tween(L, {TextColor3 = Library.Theme.Text}, 0.3) end end); return function(tx) L.Text = tx end 
         end
         
         function Tab:CriarPerfil()
             local C = Instance.new("Frame", Scr); C.Size = UDim2.new(1, -5, 0, 160); C.BackgroundColor3 = Color3.fromRGB(20,20,25); Library.Utils.AddCorner(C, 12); local CStrk = Library.Utils.AddStroke(C, Library.Theme.ItemBg, 1)
             local Av = Instance.new("ImageLabel", C); Av.Size = UDim2.new(0,70,0,70); Av.Position = UDim2.new(0,15,0,45); Av.BackgroundTransparency = 1; Library.Utils.AddCorner(Av, 100); local AStrk = Library.Utils.AddStroke(Av, Library.Theme.Accent, 2)
-            task.spawn(function() pcall(function() Av.Image = Players.LocalPlayer:GetUserThumbnailAsync(Players.LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150) end) end)
+            
+            --[CORREÇÃO AQUI]: Chamando Players:GetUserThumbnailAsync() do jeito nativo certo!
+            task.spawn(function()
+                local success, img = pcall(function()
+                    return Players:GetUserThumbnailAsync(Player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
+                end)
+                if success and img then
+                    Av.Image = img
+                end
+            end)
             
             local function Info(t, v, y, c) local L = Instance.new("TextLabel", C); L.Text = t..": "..v; L.Size = UDim2.new(0.6,0,0,18); L.Position = UDim2.new(0,100,0,y); L.BackgroundTransparency = 1; L.TextColor3 = c or Library.Theme.Text; L.Font = Enum.Font.GothamBold; L.TextSize = 12; L.TextXAlignment = Enum.TextXAlignment.Left; L.TextYAlignment = Enum.TextYAlignment.Center end
+            local fakeHWID = string.upper(string.sub(HttpService:GenerateGUID(false), 1, 14)); local fakeKey = "1NX-" .. string.upper(string.sub(HttpService:GenerateGUID(false), 1, 8))
             
-            local fakeHWID = string.upper(string.sub(HttpService:GenerateGUID(false), 1, 14))
-            local fakeKey = "1NX-" .. string.upper(string.sub(HttpService:GenerateGUID(false), 1, 8))
-            
-            Info("USER", string.upper(Player.Name), 15, Library.Theme.Text)
-            Info("ID", Player.UserId, 35, Library.Theme.TextDim)
-            Info("STATUS", "VIP ACTIVE", 55, Library.Theme.Success)
-            Info("HWID", fakeHWID, 90, Library.Theme.Warning)
-            Info("KEY", fakeKey, 110, Library.Theme.Gold)
-
+            Info("USER", string.upper(Player.Name), 15, Library.Theme.Text); Info("ID", Player.UserId, 35, Library.Theme.TextDim); Info("STATUS", "VIP ACTIVE", 55, Library.Theme.Success); Info("HWID", fakeHWID, 90, Library.Theme.Warning); Info("KEY", fakeKey, 110, Library.Theme.Gold)
             table.insert(Library.ThemeUpdaters, function() if C.Parent then Library.Utils.Tween(CStrk, {Color = Library.Theme.ItemBg}, 0.3); Library.Utils.Tween(AStrk, {Color = Library.Theme.Accent}, 0.3) end end)
         end
         return Tab
