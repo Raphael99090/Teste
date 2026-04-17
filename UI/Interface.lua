@@ -9,28 +9,23 @@ function Interface:Load(Hub, Config, State)
     local TabProf   = Window:CriarAba("👤", "Perfil")
 
     local coresNomes = {"Branco", "Vermelho", "Verde", "Azul", "Amarelo", "Roxo"}
-    local coresMap = { ["Branco"] = Color3.fromRGB(255, 255, 255), ["Vermelho"] = Color3.fromRGB(255, 0, 0), ["Verde"] = Color3.fromRGB(50, 255, 50), ["Azul"] = Color3.fromRGB(0, 150, 255), ["Amarelo"] = Color3.fromRGB(255, 215, 0), ["Roxo"] = Color3.fromRGB(150, 0, 255) }
+    local coresMap = {["Branco"] = Color3.fromRGB(255, 255, 255), ["Vermelho"] = Color3.fromRGB(255, 0, 0), ["Verde"] = Color3.fromRGB(50, 255, 50), ["Azul"] = Color3.fromRGB(0, 150, 255), ["Amarelo"] = Color3.fromRGB(255, 215, 0), ["Roxo"] = Color3.fromRGB(150, 0, 255) }
 
-    --[ ABA 1: TREINO ]
+    -- ==========================================
+    --[ ABA 1: TREINO E AJUSTES ]
+    -- ==========================================
     local LblCount = TabHome:CriarLabel("AGUARDANDO...", Color3.fromRGB(255,45,45))
     TabHome:CriarDropdown("Modo de Treino", {"Canguru", "Flexão", "Polichinelo"}, function(v) Config.Mode = v end)
 
     local BtnStart
     BtnStart = TabHome:CriarBotao("INICIAR TREINO", function()
-        if State.IsRunning then State.IsRunning = false; BtnStart("INICIAR TREINO"); Hub.UI.Library:Notificar("Status", "Treino pausado.", 2, "warn"); return end
-        State.IsRunning = true; BtnStart("PARAR TREINO"); Hub.UI.Library:Notificar("Iniciado", "Contagem iniciada...", 2)
-        task.spawn(function()
-            local step = Config.IsCountdown and -1 or 1; local finish = Config.IsCountdown and (Config.StartNum - Config.Quantity + 1) or (Config.StartNum + Config.Quantity - 1)
-            for i = Config.StartNum, finish, step do
-                if not State.IsRunning or not State.IsActive then break end
-                LblCount(tostring(i))
-                local msg = Hub.Core.Utils:NumberToText(i) .. " !"
-                if game:GetService("TextChatService").ChatInputBarConfiguration.TargetTextChannel then game:GetService("TextChatService").ChatInputBarConfiguration.TargetTextChannel:SendAsync(msg) else game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(msg, "All") end
-                if Hub.Features.AutoTrain then Hub.Features.AutoTrain:ExecutePhysics(Config, State) end
-                task.wait(Config.Mode == "Canguru" and math.max(0, Config.Delay - 0.3) or Config.Delay)
-            end
-            State.IsRunning = false; BtnStart("INICIAR TREINO"); LblCount("FIM")
-        end)
+        -- O Módulo de AutoTrain cuida de tudo e usa esse 'Callback' para mudar o texto da UI
+        if Hub.Features.AutoTrain then
+            Hub.Features.AutoTrain:Toggle(Config, State, Hub, function(textoContador, textoBotao)
+                if textoContador then LblCount(textoContador) end
+                if textoBotao then BtnStart(textoBotao) end
+            end)
+        end
     end)
 
     TabHome:CriarLabel("---  AJUSTES DO TREINO  ---", Color3.fromRGB(255, 200, 50))
@@ -40,7 +35,9 @@ function Interface:Load(Hub, Config, State)
     TabHome:CriarToggle("Contagem Regressiva", Config.IsCountdown, function(v) Config.IsCountdown = v end)
     TabHome:CriarToggle("Auto Agachar (Canguru)", Config.AutoCrouch, function(v) Config.AutoCrouch = v end)
 
+    -- ==========================================
     --[ ABA 2: COMBATE ]
+    -- ==========================================
     TabCombat:CriarLabel("---  SISTEMA DE MIRA (AIMBOT)  ---", Color3.fromRGB(220, 20, 60))
     TabCombat:CriarToggle("Ativar Aimbot (Auto-Mira)", false, function(v) if Hub.Features.Aimbot then Hub.Features.Aimbot.Settings.Enabled = v end end)
     TabCombat:CriarToggle("Mostrar Círculo FOV", false, function(v) if Hub.Features.Aimbot then Hub.Features.Aimbot.Settings.ShowFOV = v end end)
@@ -57,6 +54,7 @@ function Interface:Load(Hub, Config, State)
 
     TabCombat:CriarLabel("---  VISUAL (ESP)  ---", Color3.fromRGB(80, 255, 120))
     TabCombat:CriarToggle("Ativar ESP Principal", false, function(v) if Hub.Features.ESP then Hub.Features.ESP:Toggle(v) end end)
+    TabCombat:CriarToggle("Time / Sigla [ESP]", false, function(v) if Hub.Features.ESP then Hub.Features.ESP.Settings.TeamText = v end end)
     TabCombat:CriarToggle("Health Bar (Barra de Vida)", false, function(v) if Hub.Features.ESP then Hub.Features.ESP.Settings.HealthBar = v end end)
     TabCombat:CriarToggle("Box (Caixa)", false, function(v) if Hub.Features.ESP then Hub.Features.ESP.Settings.Box = v end end)
     TabCombat:CriarDropdown("↳ Cor da Caixa", coresNomes, function(v) if Hub.Features.ESP then Hub.Features.ESP.Settings.BoxColor = coresMap[v] end end)
@@ -65,7 +63,9 @@ function Interface:Load(Hub, Config, State)
     TabCombat:CriarToggle("Tracers (Linhas)", false, function(v) if Hub.Features.ESP then Hub.Features.ESP.Settings.Tracer = v end end)
     TabCombat:CriarDropdown("↳ Cor das Linhas", coresNomes, function(v) if Hub.Features.ESP then Hub.Features.ESP.Settings.TracerColor = coresMap[v] end end)
 
+    -- ==========================================
     --[ ABA 3: EXTRAS E MEMÓRIA ]
+    -- ==========================================
     TabExtra:CriarLabel("---  INTELIGÊNCIA E ESPIONAGEM  ---", Color3.fromRGB(255, 80, 80))
     TabExtra:CriarToggle("FreeCam (Câmera Livre - PC)", false, function(v) if Hub.Features.FreeCam then Hub.Features.FreeCam:Toggle(v) end end)
     TabExtra:CriarSlider("Velocidade da FreeCam", 1, 10, 2, function(v) if Hub.Features.FreeCam then Hub.Features.FreeCam.Settings.Speed = v end end)
@@ -84,17 +84,30 @@ function Interface:Load(Hub, Config, State)
     TabExtra:CriarToggle("Auto Rejoin", Config.AutoRejoin, function(v) Config.AutoRejoin = v end)
     TabExtra:CriarBotao("ANTI-LAG (Remover Texturas)", function() Hub.Core.Utils:AntiLag(); Hub.UI.Library:Notificar("Otimização", "Gráficos reduzidos.", 3) end)
 
+    -- ==========================================
     -- [ ABA 4: PERFIL ]
+    -- ==========================================
     TabProf:CriarPerfil()
+    
     TabProf:CriarBotao("FECHAR MENU (PANIC)", function() 
         State.IsActive = false 
-        if Hub.Features.ESP then Hub.Features.ESP:Toggle(false) end
-        if Hub.Features.Aimbot then Hub.Features.Aimbot.Settings.Enabled = false; Hub.Features.Aimbot.Settings.ShowFOV = false; Hub.Features.Aimbot.Settings.HitboxExpander = false end
-        if Hub.Features.FreeCam then Hub.Features.FreeCam:Toggle(false) end
-        if Hub.Features.SpyChat then Hub.Features.SpyChat:Toggle(false) end
-        if Hub.Features.Visuals then Hub.Features.Visuals:ToggleStretched(false) end
+        
+        -- [MÁGICA DO CÓDIGO LIMPO]: Em vez de escrever 50 linhas desligando hack por hack, 
+        -- o laço 'for' varre a pasta Features inteira e desliga tudo que estiver ligado automaticamente!
+        if Hub.Features then
+            for _, feature in pairs(Hub.Features) do
+                if feature and type(feature.Toggle) == "function" then
+                    pcall(function() feature:Toggle(false) end)
+                elseif feature and feature.Settings and feature.Settings.Enabled ~= nil then
+                    feature.Settings.Enabled = false
+                end
+            end
+        end
+        
+        -- Limpa a Interface da tela
         if game.CoreGui:FindFirstChild("CrimsonUI") then game.CoreGui["CrimsonUI"]:Destroy() end
         if game.CoreGui:FindFirstChild("InxiterFOVMobile") then game.CoreGui["InxiterFOVMobile"]:Destroy() end
+        if game.CoreGui:FindFirstChild("InxiterSpyChat") then game.CoreGui["InxiterSpyChat"]:Destroy() end
     end)
 end
 
