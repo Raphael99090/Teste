@@ -9,9 +9,10 @@ ESP.Settings = {
     Box = false, BoxColor = Color3.fromRGB(255, 255, 255),
     Skeleton = false, SkeletonColor = Color3.fromRGB(255, 255, 255),
     Tracer = false, TracerColor = Color3.fromRGB(255, 255, 255),
+    TeamText = false, -- [NOVO]: Opção do Nome do Time
     HealthBar = false,
-    ColorVisible = Color3.fromRGB(0, 255, 0), -- Verde
-    ColorHidden = Color3.fromRGB(255, 0, 0)   -- Vermelho
+    ColorVisible = Color3.fromRGB(0, 255, 0),
+    ColorHidden = Color3.fromRGB(255, 0, 0)
 }
 ESP.Cache = {}
 
@@ -29,6 +30,7 @@ function ESP:CreateDrawings(player)
         HealthBg = CreateDrawing("Line", {Thickness = 3, Transparency = 1, Color = Color3.new(0,0,0)}),
         Health = CreateDrawing("Line", {Thickness = 1.5, Transparency = 1}),
         Tracer = CreateDrawing("Line", {Thickness = 1.5, Transparency = 1}),
+        TeamText = CreateDrawing("Text", {Size = 14, Center = true, Outline = true, Font = 2, Transparency = 1}), --[NOVO]: Texto do Time
         Skeleton = {}
     }
     for i = 1, 15 do cache.Skeleton[i] = CreateDrawing("Line", {Thickness = 1.5, Transparency = 1}) end
@@ -38,23 +40,20 @@ end
 function ESP:RemoveDrawings(player)
     local cache = ESP.Cache[player]
     if cache then
-        cache.Box:Remove(); cache.BoxOutline:Remove(); cache.HealthBg:Remove(); cache.Health:Remove(); cache.Tracer:Remove()
+        cache.Box:Remove(); cache.BoxOutline:Remove(); cache.HealthBg:Remove(); cache.Health:Remove(); cache.Tracer:Remove(); cache.TeamText:Remove()
         for _, line in pairs(cache.Skeleton) do line:Remove() end
         ESP.Cache[player] = nil
     end
 end
 
---[SOLUÇÃO DEFINITIVA DA PAREDE]: Ignora o corpo do alvo e procura só muro!
 local function CheckVisibility(char, head)
     local params = RaycastParams.new()
-    params.FilterDescendantsInstances = {LocalPlayer.Character, Camera, char} -- IGNORA O ALVO TOTALMENTE
+    params.FilterDescendantsInstances = {LocalPlayer.Character, Camera, char}
     params.FilterType = Enum.RaycastFilterType.Exclude
     params.IgnoreWater = true
-    
     local dir = head.Position - Camera.CFrame.Position
     local result = workspace:Raycast(Camera.CFrame.Position, dir, params)
-    
-    return not result -- Se o raio bateu no vazio, é porque NÃO tem parede (True = Verde).
+    return not result
 end
 
 local R15Bones = {{"Head","UpperTorso"},{"UpperTorso","LowerTorso"},{"UpperTorso","LeftUpperArm"},{"LeftUpperArm","LeftLowerArm"},{"LeftLowerArm","LeftHand"},{"UpperTorso","RightUpperArm"},{"RightUpperArm","RightLowerArm"},{"RightLowerArm","RightHand"},{"LowerTorso","LeftUpperLeg"},{"LeftUpperLeg","LeftLowerLeg"},{"LeftLowerLeg","LeftFoot"},{"LowerTorso","RightUpperLeg"},{"RightUpperLeg","RightLowerLeg"},{"RightLowerLeg","RightFoot"}}
@@ -67,12 +66,10 @@ function ESP:Update()
         if not cache then ESP:CreateDrawings(player); cache = ESP.Cache[player] end
         
         local char = player.Character; local root = char and char:FindFirstChild("HumanoidRootPart"); local head = char and char:FindFirstChild("Head"); local hum = char and char:FindFirstChild("Humanoid")
-        local isShowingBox, isShowingHealth, isShowingSkeleton, isShowingTracer = false, false, false, false
+        local isShowingBox, isShowingHealth, isShowingSkeleton, isShowingTracer, isShowingTeam = false, false, false, false, false
         
         if ESP.Settings.Enabled and char and root and head and hum and hum.Health > 0 then
             local rootPos, onScreen = Camera:WorldToViewportPoint(root.Position)
-            
-            -- [MUDANÇA DE COR]: Checa se tem parede
             local isVisible = CheckVisibility(char, head)
             local WallColor = isVisible and ESP.Settings.ColorVisible or ESP.Settings.ColorHidden
 
@@ -80,7 +77,6 @@ function ESP:Update()
                 isShowingTracer = true
                 cache.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
                 cache.Tracer.To = Vector2.new(rootPos.X, rootPos.Y)
-                -- Cor da Linha + Parede
                 cache.Tracer.Color = ESP.Settings.TracerColor == Color3.fromRGB(255,255,255) and WallColor or ESP.Settings.TracerColor
                 cache.Tracer.Visible = true
             end
@@ -91,10 +87,29 @@ function ESP:Update()
                 local boxHeight = math.abs(topPos.Y - bottomPos.Y); local boxWidth = boxHeight * 0.55
                 local boxSize = Vector2.new(boxWidth, boxHeight); local boxPosition = Vector2.new(rootPos.X - boxWidth / 2, rootPos.Y - boxHeight / 2)
                 
+                -- [NOVO]: Lógica do Nome do Time (Extrai sigla entre colchetes)
+                if ESP.Settings.TeamText then
+                    isShowingTeam = true
+                    local tName = "Sem Time"
+                    local tColor = Color3.fromRGB(255, 255, 255)
+                    
+                    if player.Team then
+                        local fullName = player.Team.Name
+                        -- Procura qualquer coisa entre '[' e ']'
+                        local sigla = string.match(fullName, "%[(.-)%]")
+                        tName = sigla or fullName -- Se não tiver sigla, usa o nome normal
+                        tColor = player.Team.TeamColor.Color
+                    end
+                    
+                    cache.TeamText.Text = tName
+                    cache.TeamText.Color = tColor
+                    cache.TeamText.Position = Vector2.new(boxPosition.X + (boxWidth / 2), boxPosition.Y - 18) -- Fica centralizado em cima da caixa!
+                    cache.TeamText.Visible = true
+                end
+
                 if ESP.Settings.Box then
                     isShowingBox = true
                     cache.BoxOutline.Size = boxSize; cache.BoxOutline.Position = boxPosition; cache.BoxOutline.Visible = true
-                    -- Cor da Caixa + Parede
                     cache.Box.Size = boxSize; cache.Box.Position = boxPosition; cache.Box.Color = ESP.Settings.BoxColor == Color3.fromRGB(255,255,255) and WallColor or ESP.Settings.BoxColor; cache.Box.Visible = true
                 end
                 if ESP.Settings.HealthBar then
@@ -112,8 +127,7 @@ function ESP:Update()
                             local pos1, v1 = Camera:WorldToViewportPoint(char[bone[1]].Position); local pos2, v2 = Camera:WorldToViewportPoint(char[bone[2]].Position)
                             if v1 or v2 then 
                                 line.From = Vector2.new(pos1.X, pos1.Y); line.To = Vector2.new(pos2.X, pos2.Y); 
-                                line.Color = ESP.Settings.SkeletonColor == Color3.fromRGB(255,255,255) and WallColor or ESP.Settings.SkeletonColor; 
-                                line.Visible = true 
+                                line.Color = ESP.Settings.SkeletonColor == Color3.fromRGB(255,255,255) and WallColor or ESP.Settings.SkeletonColor; line.Visible = true 
                             else line.Visible = false end
                         else line.Visible = false end
                     end
@@ -123,6 +137,7 @@ function ESP:Update()
         if not isShowingBox then cache.Box.Visible = false; cache.BoxOutline.Visible = false end
         if not isShowingHealth then cache.HealthBg.Visible = false; cache.Health.Visible = false end
         if not isShowingTracer then cache.Tracer.Visible = false end
+        if not isShowingTeam then cache.TeamText.Visible = false end -- Esconde o texto
         if not isShowingSkeleton then for _, line in pairs(cache.Skeleton) do line.Visible = false end end
     end
 end
