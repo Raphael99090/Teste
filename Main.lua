@@ -1,4 +1,4 @@
---[[ 1NXITER HUB - LOADER v2.1.0 ]]
+--[[ 1NXITER HUB - LOADER v2.3.0 (STRICT VALIDATION) ]]
 if getgenv().InxiterHubLoaded then return warn("⚠️ O Hub já está em execução!") end
 
 if not game.HttpGet or not loadstring then
@@ -9,7 +9,6 @@ end
 local BaseURL = "https://raw.githubusercontent.com/Raphael99090/Teste/main/"
 local Hub = { Core = {}, UI = {}, Features = {} }
 
--- LISTA DE TODOS OS MÓDULOS DO SEU PROJETO
 local FilesToLoad = {
     Core = {"Utils", "State"},
     UI = {"Library", "Interface"},
@@ -46,27 +45,44 @@ end
 while loadedFiles + failedFiles < totalFiles do task.wait(0.1) end
 
 if failedFiles > 0 then
-    game.StarterGui:SetCore("SendNotification", {Title="ERRO DE REDE", Text=failedFiles.." arquivos falharam.", Duration=5})
+    game.StarterGui:SetCore("SendNotification", {Title="ERRO DE REDE", Text=failedFiles.." arquivos falharam no download.", Duration=5})
     return
 end
 
-if Hub.UI.Library and Hub.UI.Interface and Hub.Core.State then
+-- [NOVO]: VERIFICAÇÃO DE INTEGRIDADE MÍNIMA E CRÍTICA
+local missingModules = {}
+for folder, list in pairs(FilesToLoad) do
+    for _, file in pairs(list) do
+        if type(Hub[folder][file]) ~= "table" then
+            table.insert(missingModules, folder .. "/" .. file)
+        end
+    end
+end
+
+if #missingModules > 0 then
+    warn("❌ Módulos corrompidos ou ausentes: " .. table.concat(missingModules, ", "))
+    game.StarterGui:SetCore("SendNotification", {Title="ERRO DE INTEGRIDADE", Text="Alguns módulos retornaram Nil. Olhe o F9.", Duration=10})
+    return
+end
+
+-- Tudo 100% íntegro, prossegue com o carregamento da UI
+local initSuccess, initError = pcall(function()
     getgenv().InxiterHubLoaded = true 
-    
     local Config = Hub.Core.State:LoadConfig()
     local State = Hub.Core.State:GetRuntimeState()
     
     local conn
     conn = game:GetService("CoreGui").ChildRemoved:Connect(function(child)
-        if child.Name == "CrimsonUI" then
-            getgenv().InxiterHubLoaded = false
-            if conn then conn:Disconnect() end
-        end
+        if child.Name == "CrimsonUI" then getgenv().InxiterHubLoaded = false; if conn then conn:Disconnect() end end
     end)
 
-    Hub.Core.Utils:AntiAFK(State)
-    Hub.Core.Utils:AutoRejoin(Config)
+    Hub.Core.Utils:AntiAFK(State); Hub.Core.Utils:AutoRejoin(Config)
     Hub.UI.Interface:Load(Hub, Config, State)
+end)
+
+if initSuccess then
+    game.StarterGui:SetCore("SendNotification", {Title="1NXITER HUB", Text="Carregado v2.3.0 com sucesso!", Duration=3})
 else
-    game.StarterGui:SetCore("SendNotification", {Title="ERRO", Text="Falha no carregamento. Abra o F9."})
+    getgenv().InxiterHubLoaded = false 
+    warn("❌ Erro ao construir UI: " .. tostring(initError))
 end
