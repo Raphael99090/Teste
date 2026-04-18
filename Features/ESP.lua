@@ -1,59 +1,26 @@
 local ESP = {}
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Camera = workspace.CurrentCamera
-local LocalPlayer = Players.LocalPlayer
+local Players = game:GetService("Players"); local RunService = game:GetService("RunService"); local Camera = workspace.CurrentCamera; local LocalPlayer = Players.LocalPlayer
 
-ESP.Settings = { 
-    Enabled = false, 
-    Box = false, BoxColor = Color3.fromRGB(255, 255, 255),
-    Skeleton = false, SkeletonColor = Color3.fromRGB(255, 255, 255),
-    Tracer = false, TracerColor = Color3.fromRGB(255, 255, 255),
-    TeamText = false, -- [NOVO]: Opção do Nome do Time
-    HealthBar = false,
-    ColorVisible = Color3.fromRGB(0, 255, 0),
-    ColorHidden = Color3.fromRGB(255, 0, 0)
-}
+-- [MELHORIA]: Adicionado TeamCheck no ESP
+ESP.Settings = { Enabled = false, TeamCheck = false, Box = false, BoxColor = Color3.fromRGB(255, 255, 255), Skeleton = false, SkeletonColor = Color3.fromRGB(255, 255, 255), Tracer = false, TracerColor = Color3.fromRGB(255, 255, 255), TeamText = false, HealthBar = false, ColorVisible = Color3.fromRGB(0, 255, 0), ColorHidden = Color3.fromRGB(255, 0, 0) }
 ESP.Cache = {}
 
-local function CreateDrawing(class, properties)
-    local drawing = Drawing.new(class)
-    for prop, val in pairs(properties) do drawing[prop] = val end
-    return drawing
-end
+local function CreateDrawing(class, properties) local drawing = Drawing.new(class); for prop, val in pairs(properties) do drawing[prop] = val end; return drawing end
 
 function ESP:CreateDrawings(player)
     if ESP.Cache[player] then return end
-    local cache = {
-        BoxOutline = CreateDrawing("Square", {Thickness = 3, Filled = false, Transparency = 1, Color = Color3.new(0,0,0)}),
-        Box = CreateDrawing("Square", {Thickness = 1.5, Filled = false, Transparency = 1}),
-        HealthBg = CreateDrawing("Line", {Thickness = 3, Transparency = 1, Color = Color3.new(0,0,0)}),
-        Health = CreateDrawing("Line", {Thickness = 1.5, Transparency = 1}),
-        Tracer = CreateDrawing("Line", {Thickness = 1.5, Transparency = 1}),
-        TeamText = CreateDrawing("Text", {Size = 14, Center = true, Outline = true, Font = 2, Transparency = 1}), --[NOVO]: Texto do Time
-        Skeleton = {}
-    }
-    for i = 1, 15 do cache.Skeleton[i] = CreateDrawing("Line", {Thickness = 1.5, Transparency = 1}) end
-    ESP.Cache[player] = cache
+    local cache = { BoxOutline = CreateDrawing("Square", {Thickness = 3, Filled = false, Transparency = 1, Color = Color3.new(0,0,0)}), Box = CreateDrawing("Square", {Thickness = 1.5, Filled = false, Transparency = 1}), HealthBg = CreateDrawing("Line", {Thickness = 3, Transparency = 1, Color = Color3.new(0,0,0)}), Health = CreateDrawing("Line", {Thickness = 1.5, Transparency = 1}), Tracer = CreateDrawing("Line", {Thickness = 1.5, Transparency = 1}), TeamText = CreateDrawing("Text", {Size = 14, Center = true, Outline = true, Font = 2, Transparency = 1}), Skeleton = {} }
+    for i = 1, 15 do cache.Skeleton[i] = CreateDrawing("Line", {Thickness = 1.5, Transparency = 1}) end; ESP.Cache[player] = cache
 end
 
 function ESP:RemoveDrawings(player)
     local cache = ESP.Cache[player]
-    if cache then
-        cache.Box:Remove(); cache.BoxOutline:Remove(); cache.HealthBg:Remove(); cache.Health:Remove(); cache.Tracer:Remove(); cache.TeamText:Remove()
-        for _, line in pairs(cache.Skeleton) do line:Remove() end
-        ESP.Cache[player] = nil
-    end
+    if cache then cache.Box:Remove(); cache.BoxOutline:Remove(); cache.HealthBg:Remove(); cache.Health:Remove(); cache.Tracer:Remove(); cache.TeamText:Remove(); for _, line in pairs(cache.Skeleton) do line:Remove() end; ESP.Cache[player] = nil end
 end
 
 local function CheckVisibility(char, head)
-    local params = RaycastParams.new()
-    params.FilterDescendantsInstances = {LocalPlayer.Character, Camera, char}
-    params.FilterType = Enum.RaycastFilterType.Exclude
-    params.IgnoreWater = true
-    local dir = head.Position - Camera.CFrame.Position
-    local result = workspace:Raycast(Camera.CFrame.Position, dir, params)
-    return not result
+    local params = RaycastParams.new(); params.FilterDescendantsInstances = {LocalPlayer.Character, Camera, char}; params.FilterType = Enum.RaycastFilterType.Exclude; params.IgnoreWater = true
+    return not workspace:Raycast(Camera.CFrame.Position, head.Position - Camera.CFrame.Position, params)
 end
 
 local R15Bones = {{"Head","UpperTorso"},{"UpperTorso","LowerTorso"},{"UpperTorso","LeftUpperArm"},{"LeftUpperArm","LeftLowerArm"},{"LeftLowerArm","LeftHand"},{"UpperTorso","RightUpperArm"},{"RightUpperArm","RightLowerArm"},{"RightLowerArm","RightHand"},{"LowerTorso","LeftUpperLeg"},{"LeftUpperLeg","LeftLowerLeg"},{"LeftLowerLeg","LeftFoot"},{"LowerTorso","RightUpperLeg"},{"RightUpperLeg","RightLowerLeg"},{"RightLowerLeg","RightFoot"}}
@@ -62,95 +29,40 @@ local R6Bones = {{"Head","Torso"},{"Torso","Left Arm"},{"Torso","Right Arm"},{"T
 function ESP:Update()
     for _, player in pairs(Players:GetPlayers()) do
         if player == LocalPlayer then continue end
-        local cache = ESP.Cache[player]
-        if not cache then ESP:CreateDrawings(player); cache = ESP.Cache[player] end
-        
-        local char = player.Character; local root = char and char:FindFirstChild("HumanoidRootPart"); local head = char and char:FindFirstChild("Head"); local hum = char and char:FindFirstChild("Humanoid")
+        local cache = ESP.Cache[player]; if not cache then ESP:CreateDrawings(player); cache = ESP.Cache[player] end
         local isShowingBox, isShowingHealth, isShowingSkeleton, isShowingTracer, isShowingTeam = false, false, false, false, false
+        
+        -- [NOVO]: Se o cara for do seu time e o TeamCheck estiver ligado, o ESP pula ele!
+        if ESP.Settings.TeamCheck and player.Team == LocalPlayer.Team then
+            cache.Box.Visible=false; cache.BoxOutline.Visible=false; cache.HealthBg.Visible=false; cache.Health.Visible=false; cache.Tracer.Visible=false; cache.TeamText.Visible=false; for _, line in pairs(cache.Skeleton) do line.Visible=false end
+            continue
+        end
+
+        local char = player.Character; local root = char and char:FindFirstChild("HumanoidRootPart"); local head = char and char:FindFirstChild("Head"); local hum = char and char:FindFirstChild("Humanoid")
         
         if ESP.Settings.Enabled and char and root and head and hum and hum.Health > 0 then
             local rootPos, onScreen = Camera:WorldToViewportPoint(root.Position)
-            local isVisible = CheckVisibility(char, head)
-            local WallColor = isVisible and ESP.Settings.ColorVisible or ESP.Settings.ColorHidden
+            local isVisible = CheckVisibility(char, head); local WallColor = isVisible and ESP.Settings.ColorVisible or ESP.Settings.ColorHidden
 
-            if ESP.Settings.Tracer then
-                isShowingTracer = true
-                cache.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
-                cache.Tracer.To = Vector2.new(rootPos.X, rootPos.Y)
-                cache.Tracer.Color = ESP.Settings.TracerColor == Color3.fromRGB(255,255,255) and WallColor or ESP.Settings.TracerColor
-                cache.Tracer.Visible = true
-            end
-
+            if ESP.Settings.Tracer then isShowingTracer = true; cache.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y); cache.Tracer.To = Vector2.new(rootPos.X, rootPos.Y); cache.Tracer.Color = ESP.Settings.TracerColor == Color3.fromRGB(255,255,255) and WallColor or ESP.Settings.TracerColor; cache.Tracer.Visible = true end
             if onScreen then
-                local topPos = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
-                local bottomPos = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
-                local boxHeight = math.abs(topPos.Y - bottomPos.Y); local boxWidth = boxHeight * 0.55
-                local boxSize = Vector2.new(boxWidth, boxHeight); local boxPosition = Vector2.new(rootPos.X - boxWidth / 2, rootPos.Y - boxHeight / 2)
+                local topPos = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0)); local bottomPos = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
+                local boxHeight = math.abs(topPos.Y - bottomPos.Y); local boxWidth = boxHeight * 0.55; local boxSize = Vector2.new(boxWidth, boxHeight); local boxPosition = Vector2.new(rootPos.X - boxWidth / 2, rootPos.Y - boxHeight / 2)
                 
-                -- [NOVO]: Lógica do Nome do Time (Extrai sigla entre colchetes)
-                if ESP.Settings.TeamText then
-                    isShowingTeam = true
-                    local tName = "Sem Time"
-                    local tColor = Color3.fromRGB(255, 255, 255)
-                    
-                    if player.Team then
-                        local fullName = player.Team.Name
-                        -- Procura qualquer coisa entre '[' e ']'
-                        local sigla = string.match(fullName, "%[(.-)%]")
-                        tName = sigla or fullName -- Se não tiver sigla, usa o nome normal
-                        tColor = player.Team.TeamColor.Color
-                    end
-                    
-                    cache.TeamText.Text = tName
-                    cache.TeamText.Color = tColor
-                    cache.TeamText.Position = Vector2.new(boxPosition.X + (boxWidth / 2), boxPosition.Y - 18) -- Fica centralizado em cima da caixa!
-                    cache.TeamText.Visible = true
-                end
-
-                if ESP.Settings.Box then
-                    isShowingBox = true
-                    cache.BoxOutline.Size = boxSize; cache.BoxOutline.Position = boxPosition; cache.BoxOutline.Visible = true
-                    cache.Box.Size = boxSize; cache.Box.Position = boxPosition; cache.Box.Color = ESP.Settings.BoxColor == Color3.fromRGB(255,255,255) and WallColor or ESP.Settings.BoxColor; cache.Box.Visible = true
-                end
-                if ESP.Settings.HealthBar then
-                    isShowingHealth = true
-                    local hp = hum.Health / hum.MaxHealth; local barX = boxPosition.X - 6; local barY = boxPosition.Y + boxHeight
-                    cache.HealthBg.From = Vector2.new(barX, barY + 1); cache.HealthBg.To = Vector2.new(barX, barY - boxHeight - 1); cache.HealthBg.Visible = true
-                    cache.Health.From = Vector2.new(barX, barY); cache.Health.To = Vector2.new(barX, barY - (boxHeight * hp)); cache.Health.Color = Color3.fromHSV(hp * 0.3, 1, 1); cache.Health.Visible = true
-                end
-                if ESP.Settings.Skeleton then
-                    isShowingSkeleton = true
-                    local bonesMap = hum.RigType == Enum.HumanoidRigType.R15 and R15Bones or R6Bones
-                    for i = 1, 15 do
-                        local line = cache.Skeleton[i]; local bone = bonesMap[i]
-                        if bone and char:FindFirstChild(bone[1]) and char:FindFirstChild(bone[2]) then
-                            local pos1, v1 = Camera:WorldToViewportPoint(char[bone[1]].Position); local pos2, v2 = Camera:WorldToViewportPoint(char[bone[2]].Position)
-                            if v1 or v2 then 
-                                line.From = Vector2.new(pos1.X, pos1.Y); line.To = Vector2.new(pos2.X, pos2.Y); 
-                                line.Color = ESP.Settings.SkeletonColor == Color3.fromRGB(255,255,255) and WallColor or ESP.Settings.SkeletonColor; line.Visible = true 
-                            else line.Visible = false end
-                        else line.Visible = false end
-                    end
-                end
+                if ESP.Settings.TeamText then isShowingTeam = true; local tName = "Sem Time"; local tColor = Color3.fromRGB(255, 255, 255); if player.Team then tName = string.match(player.Team.Name, "%[(.-)%]") or player.Team.Name; tColor = player.Team.TeamColor.Color end; cache.TeamText.Text = tName; cache.TeamText.Color = tColor; cache.TeamText.Position = Vector2.new(boxPosition.X + (boxWidth / 2), boxPosition.Y - 18); cache.TeamText.Visible = true end
+                if ESP.Settings.Box then isShowingBox = true; cache.BoxOutline.Size = boxSize; cache.BoxOutline.Position = boxPosition; cache.BoxOutline.Visible = true; cache.Box.Size = boxSize; cache.Box.Position = boxPosition; cache.Box.Color = ESP.Settings.BoxColor == Color3.fromRGB(255,255,255) and WallColor or ESP.Settings.BoxColor; cache.Box.Visible = true end
+                if ESP.Settings.HealthBar then isShowingHealth = true; local hp = hum.Health / hum.MaxHealth; local barX = boxPosition.X - 6; local barY = boxPosition.Y + boxHeight; cache.HealthBg.From = Vector2.new(barX, barY + 1); cache.HealthBg.To = Vector2.new(barX, barY - boxHeight - 1); cache.HealthBg.Visible = true; cache.Health.From = Vector2.new(barX, barY); cache.Health.To = Vector2.new(barX, barY - (boxHeight * hp)); cache.Health.Color = Color3.fromHSV(hp * 0.3, 1, 1); cache.Health.Visible = true end
+                if ESP.Settings.Skeleton then isShowingSkeleton = true; local bonesMap = hum.RigType == Enum.HumanoidRigType.R15 and R15Bones or R6Bones; for i = 1, 15 do local line = cache.Skeleton[i]; local bone = bonesMap[i]; if bone and char:FindFirstChild(bone[1]) and char:FindFirstChild(bone[2]) then local pos1, v1 = Camera:WorldToViewportPoint(char[bone[1]].Position); local pos2, v2 = Camera:WorldToViewportPoint(char[bone[2]].Position); if v1 or v2 then line.From = Vector2.new(pos1.X, pos1.Y); line.To = Vector2.new(pos2.X, pos2.Y); line.Color = ESP.Settings.SkeletonColor == Color3.fromRGB(255,255,255) and WallColor or ESP.Settings.SkeletonColor; line.Visible = true else line.Visible = false end else line.Visible = false end end end
             end
         end
         if not isShowingBox then cache.Box.Visible = false; cache.BoxOutline.Visible = false end
         if not isShowingHealth then cache.HealthBg.Visible = false; cache.Health.Visible = false end
         if not isShowingTracer then cache.Tracer.Visible = false end
-        if not isShowingTeam then cache.TeamText.Visible = false end -- Esconde o texto
+        if not isShowingTeam then cache.TeamText.Visible = false end
         if not isShowingSkeleton then for _, line in pairs(cache.Skeleton) do line.Visible = false end end
     end
 end
 
-function ESP:Toggle(state)
-    ESP.Settings.Enabled = state
-    if state then
-        if not ESP.Connection then ESP.Connection = RunService.RenderStepped:Connect(function() ESP:Update() end) end
-    else
-        if ESP.Connection then ESP.Connection:Disconnect(); ESP.Connection = nil end
-        for p, _ in pairs(ESP.Cache) do ESP:RemoveDrawings(p) end
-    end
-end
-
+function ESP:Toggle(state) ESP.Settings.Enabled = state; if state then if not ESP.Connection then ESP.Connection = RunService.RenderStepped:Connect(function() ESP:Update() end) end else if ESP.Connection then ESP.Connection:Disconnect(); ESP.Connection = nil end; for p, _ in pairs(ESP.Cache) do ESP:RemoveDrawings(p) end end end
 Players.PlayerRemoving:Connect(function(p) ESP:RemoveDrawings(p) end)
 return ESP
