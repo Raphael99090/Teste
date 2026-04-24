@@ -1,10 +1,13 @@
 local Interface = {}
 
 function Interface:Load(Hub, Config, State)
-    local Window = Hub.UI.Library:CriarJanela("1NXITER HUB")
+    -- SEM GAMBIARRA: Chamando o método nativo real da Library
+    local Window = Hub.UI.Library.Window.Create("1NXITER HUB")
 
-    -- [NOVO]: Inicia a Watermark baseada no seu arquivo de configuração
-    if Config.Watermark then Window:SetWatermark(true) end
+    -- Inicia a Watermark se estiver salva no JSON
+    if Config.Watermark and Window.SetWatermark then 
+        Window:SetWatermark(true) 
+    end
 
     local TabHome   = Window:CriarAba("⚔", "Treino")
     local TabCombat = Window:CriarAba("🎯", "Combate")
@@ -12,9 +15,15 @@ function Interface:Load(Hub, Config, State)
     local TabProf   = Window:CriarAba("👤", "Perfil")
 
     local coresNomes = {"Branco", "Vermelho", "Verde", "Azul", "Amarelo", "Roxo"}
-    local coresMap = { ["Branco"] = Color3.fromRGB(255, 255, 255), ["Vermelho"] = Color3.fromRGB(255, 0, 0), ["Verde"] = Color3.fromRGB(50, 255, 50), ["Azul"] = Color3.fromRGB(0, 150, 255), ["Amarelo"] = Color3.fromRGB(255, 215, 0), ["Roxo"] = Color3.fromRGB(150, 0, 255) }
+    local coresMap = {["Branco"] = Color3.fromRGB(255, 255, 255), 
+        ["Vermelho"] = Color3.fromRGB(255, 0, 0), 
+        ["Verde"] = Color3.fromRGB(50, 255, 50), 
+        ["Azul"] = Color3.fromRGB(0, 150, 255),["Amarelo"] = Color3.fromRGB(255, 215, 0),["Roxo"] = Color3.fromRGB(150, 0, 255) 
+    }
 
-    -- [ ABA 1: TREINO ]
+    -- ==========================================
+    -- [ ABA 1: TREINO E AJUSTES ]
+    -- ==========================================
     local LblCount = TabHome:CriarLabel("AGUARDANDO...", Color3.fromRGB(255,45,45))
     TabHome:CriarDropdown("Modo de Treino", {"Canguru", "Flexão", "Polichinelo"}, function(v) Config.Mode = v end)
 
@@ -35,7 +44,9 @@ function Interface:Load(Hub, Config, State)
     TabHome:CriarToggle("Contagem Regressiva", Config.IsCountdown, function(v) Config.IsCountdown = v end)
     TabHome:CriarToggle("Auto Agachar (Canguru)", Config.AutoCrouch, function(v) Config.AutoCrouch = v end)
 
+    -- ==========================================
     -- [ ABA 2: COMBATE ]
+    -- ==========================================
     TabCombat:CriarLabel("---  SISTEMA DE MIRA (AIMBOT)  ---", Color3.fromRGB(220, 20, 60))
     TabCombat:CriarToggle("Ativar Aimbot (Auto-Mira)", false, function(v) if Hub.Features.Aimbot then Hub.Features.Aimbot.Settings.Enabled = v end end)
     TabCombat:CriarToggle("Ignorar Aliados (Team Check)", false, function(v) if Hub.Features.Aimbot then Hub.Features.Aimbot.Settings.TeamCheck = v end end)
@@ -62,7 +73,7 @@ function Interface:Load(Hub, Config, State)
     TabCombat:CriarLabel("---  VISUAL (ESP)  ---", Color3.fromRGB(80, 255, 120))
     TabCombat:CriarToggle("Ativar ESP Principal", false, function(v) if Hub.Features.ESP then Hub.Features.ESP:Toggle(v) end end)
     TabCombat:CriarToggle("Ocultar Aliados (Team Check)", false, function(v) if Hub.Features.ESP then Hub.Features.ESP.Settings.TeamCheck = v end end)
-    TabCombat:CriarToggle("Time / Sigla [ESP]", false, function(v) if Hub.Features.ESP then Hub.Features.ESP.Settings.TeamText = v end end)
+    TabCombat:CriarToggle("Time / Sigla[ESP]", false, function(v) if Hub.Features.ESP then Hub.Features.ESP.Settings.TeamText = v end end)
     TabCombat:CriarToggle("Health Bar (Barra de Vida)", false, function(v) if Hub.Features.ESP then Hub.Features.ESP.Settings.HealthBar = v end end)
     
     TabCombat:CriarToggle("Box (Caixa)", false, function(v) if Hub.Features.ESP then Hub.Features.ESP.Settings.Box = v end end)
@@ -74,7 +85,9 @@ function Interface:Load(Hub, Config, State)
     TabCombat:CriarToggle("Tracers (Linhas)", false, function(v) if Hub.Features.ESP then Hub.Features.ESP.Settings.Tracer = v end end)
     TabCombat:CriarColorPicker("↳ Cor das Linhas", Color3.fromRGB(255, 255, 255), function(color) if Hub.Features.ESP then Hub.Features.ESP.Settings.TracerColor = color end end)
 
-    -- [ ABA 3: EXTRAS E MEMÓRIA ]
+    -- ==========================================
+    -- [ ABA 3: EXTRAS ]
+    -- ==========================================
     TabExtra:CriarLabel("---  MOVIMENTAÇÃO E FUGA  ---", Color3.fromRGB(0, 150, 255))
     TabExtra:CriarToggle("SpeedHack (Super Velocidade)", false, function(v) if Hub.Features.PlayerMods then Hub.Features.PlayerMods:ToggleSpeed(v) end end)
     TabExtra:CriarSlider("Velocidade do SpeedHack", 16, 200, 50, function(v) if Hub.Features.PlayerMods then Hub.Features.PlayerMods.Settings.SpeedValue = v end end)
@@ -96,20 +109,24 @@ function Interface:Load(Hub, Config, State)
     TabExtra:CriarSlider("Velocidade da FreeCam", 1, 10, 2, function(v) if Hub.Features.FreeCam then Hub.Features.FreeCam.Settings.Speed = v end end)
     TabExtra:CriarToggle("Spy Chat (Ver Chat Oculto)", false, function(v) if Hub.Features.SpyChat then Hub.Features.SpyChat:Toggle(v) end end)
 
-    TabExtra:CriarLabel("---  ESTILO DO MENU  ---", Color3.fromRGB(255, 215, 0))
-    
-    -- [NOVO]: Botão para ligar e desligar a Marca D'água
-    TabExtra:CriarToggle("Mostrar Marca D'água (FPS/Ping)", Config.Watermark, function(v) 
-        Config.Watermark = v
-        Window:SetWatermark(v)
-    end)
-    
-    TabExtra:CriarDropdown("Tema da Interface", {"Crimson", "Neon Purple", "Ocean Blue", "Toxic Green", "Midnight Gold"}, function(tema) Hub.UI.Library:ChangeTheme(tema); Hub.UI.Library:Notificar("Tema", "Atualizado para " .. tema, 3) end)
-
     TabExtra:CriarLabel("---  MEMÓRIA / CONFIGURAÇÕES  ---", Color3.fromRGB(80, 255, 120))
     TabExtra:CriarBotao("💾 SALVAR CONFIGURAÇÕES", function()
-        if Hub.Core.State then local sucesso = Hub.Core.State:SaveConfig(Config); if sucesso then Hub.UI.Library:Notificar("Sucesso!", "Salvo no celular (.json)", 3) else Hub.UI.Library:Notificar("Aviso", "Executor não suportado.", 3) end end
+        if Hub.Core.State then 
+            local sucesso = Hub.Core.State:SaveConfig(Config)
+            if sucesso then 
+                Hub.UI.Library:Notificar("Sucesso!", "Salvo no celular (.json)", 3) 
+            else 
+                Hub.UI.Library:Notificar("Aviso", "Executor não suportado.", 3) 
+            end 
+        end
     end)
+
+    TabExtra:CriarLabel("---  ESTILO DO MENU  ---", Color3.fromRGB(255, 215, 0))
+    TabExtra:CriarToggle("Mostrar Marca D'água (FPS/Ping)", Config.Watermark, function(v) 
+        Config.Watermark = v
+        if Window.SetWatermark then Window:SetWatermark(v) end
+    end)
+    TabExtra:CriarDropdown("Tema da Interface", {"Crimson", "Neon Purple", "Ocean Blue", "Toxic Green", "Midnight Gold"}, function(tema) Hub.UI.Library:ChangeTheme(tema); Hub.UI.Library:Notificar("Tema", "Atualizado para " .. tema, 3) end)
 
     TabExtra:CriarLabel("---  UTILITÁRIOS E FUGA  ---", Color3.fromRGB(245, 245, 245))
     TabExtra:CriarToggle("Auto Equipar Arma (Treino)", Config.AutoEquip, function(v) Config.AutoEquip = v end)
@@ -118,8 +135,11 @@ function Interface:Load(Hub, Config, State)
     TabExtra:CriarBotao("🌐 SERVER HOP (Fugir de sala)", function() Hub.UI.Library:Notificar("Server Hop", "Buscando servidor vazio...", 5); Hub.Core.Utils:ServerHop() end)
     TabExtra:CriarBotao("⚡ FPS BOOST MÁXIMO (Anti-Lag)", function() Hub.Core.Utils:AntiLag(); Hub.UI.Library:Notificar("Otimização", "Gráficos reduzidos.", 3, "success") end)
 
-    -- [ ABA 4: PERFIL ]
+    -- ==========================================
+    -- [ ABA 4: PERFIL E ENCERRAMENTO ]
+    -- ==========================================
     TabProf:CriarPerfil()
+    
     TabProf:CriarBotao("FECHAR MENU (PANIC)", function() 
         State.IsActive = false 
         if Hub.Features then
@@ -132,8 +152,7 @@ function Interface:Load(Hub, Config, State)
             if Hub.Features.Aimbot then Hub.Features.Aimbot.Settings.ShowFOV = false; Hub.Features.Aimbot.Settings.HitboxExpander = false end
         end
         
-        -- [NOVO]: Desliga a Watermark ao fechar o menu
-        Window:SetWatermark(false)
+        if Window.SetWatermark then Window:SetWatermark(false) end
         
         local CoreGui = game:GetService("CoreGui")
         if CoreGui:FindFirstChild("CrimsonUI") then CoreGui["CrimsonUI"]:Destroy() end
