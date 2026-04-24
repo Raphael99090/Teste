@@ -308,10 +308,4 @@ function Interface:Load(Hub, Config, State)
     end)
 end
 
-return WindowObj
-end
-
---[ ADICIONE ESTA LINHA AQUI PARA CORRIGIR O ERRO! ]
-function Library:CriarJanela(title) return Library:CreateWindow({Title = title}) end
-
 return Library
