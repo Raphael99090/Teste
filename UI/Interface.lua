@@ -3,6 +3,9 @@ local Interface = {}
 function Interface:Load(Hub, Config, State)
     local Window = Hub.UI.Library:CriarJanela("1NXITER HUB")
 
+    -- [NOVO]: Inicia a Watermark baseada no seu arquivo de configuração
+    if Config.Watermark then Window:SetWatermark(true) end
+
     local TabHome   = Window:CriarAba("⚔", "Treino")
     local TabCombat = Window:CriarAba("🎯", "Combate")
     local TabExtra  = Window:CriarAba("🚀", "Extras")
@@ -11,20 +14,28 @@ function Interface:Load(Hub, Config, State)
     local coresNomes = {"Branco", "Vermelho", "Verde", "Azul", "Amarelo", "Roxo"}
     local coresMap = { ["Branco"] = Color3.fromRGB(255, 255, 255), ["Vermelho"] = Color3.fromRGB(255, 0, 0), ["Verde"] = Color3.fromRGB(50, 255, 50), ["Azul"] = Color3.fromRGB(0, 150, 255), ["Amarelo"] = Color3.fromRGB(255, 215, 0), ["Roxo"] = Color3.fromRGB(150, 0, 255) }
 
-    -- [ ABA TREINO ]
+    -- [ ABA 1: TREINO ]
     local LblCount = TabHome:CriarLabel("AGUARDANDO...", Color3.fromRGB(255,45,45))
     TabHome:CriarDropdown("Modo de Treino", {"Canguru", "Flexão", "Polichinelo"}, function(v) Config.Mode = v end)
+
     local BtnStart
-    BtnStart = TabHome:CriarBotao("INICIAR TREINO", function() if Hub.Features.AutoTrain then Hub.Features.AutoTrain:Toggle(Config, State, Hub, function(txt, btn) if txt then LblCount(txt) end; if btn then BtnStart(btn) end end) end end)
+    BtnStart = TabHome:CriarBotao("INICIAR TREINO", function()
+        if Hub.Features.AutoTrain then
+            Hub.Features.AutoTrain:Toggle(Config, State, Hub, function(textoContador, textoBotao)
+                if textoContador then LblCount(textoContador) end
+                if textoBotao then BtnStart(textoBotao) end
+            end)
+        end
+    end)
 
     TabHome:CriarLabel("---  AJUSTES DO TREINO  ---", Color3.fromRGB(255, 200, 50))
-    TabHome:CriarInput("Número Inicial", Config.StartNum, function(v) Config.StartNum = tonumber(v) or 0 end)
-    TabHome:CriarInput("Quantidade", Config.Quantity, function(v) Config.Quantity = tonumber(v) or 130 end)
+    TabHome:CriarInput("Número Inicial", Config.StartNum, true, function(v) Config.StartNum = tonumber(v) or 0 end)
+    TabHome:CriarInput("Quantidade", Config.Quantity, true, function(v) Config.Quantity = tonumber(v) or 130 end)
     TabHome:CriarSlider("Velocidade (Delay)", 0.5, 5.0, Config.Delay, function(v) Config.Delay = v end)
     TabHome:CriarToggle("Contagem Regressiva", Config.IsCountdown, function(v) Config.IsCountdown = v end)
     TabHome:CriarToggle("Auto Agachar (Canguru)", Config.AutoCrouch, function(v) Config.AutoCrouch = v end)
 
-    -- [ ABA COMBATE ]
+    -- [ ABA 2: COMBATE ]
     TabCombat:CriarLabel("---  SISTEMA DE MIRA (AIMBOT)  ---", Color3.fromRGB(220, 20, 60))
     TabCombat:CriarToggle("Ativar Aimbot (Auto-Mira)", false, function(v) if Hub.Features.Aimbot then Hub.Features.Aimbot.Settings.Enabled = v end end)
     TabCombat:CriarToggle("Ignorar Aliados (Team Check)", false, function(v) if Hub.Features.Aimbot then Hub.Features.Aimbot.Settings.TeamCheck = v end end)
@@ -39,6 +50,13 @@ function Interface:Load(Hub, Config, State)
 
     TabCombat:CriarLabel("---  TELA ESTICADA (FOV)  ---", Color3.fromRGB(255, 100, 255))
     TabCombat:CriarToggle("Ativar Tela Esticada", false, function(v) if Hub.Features.Visuals then Hub.Features.Visuals:ToggleStretched(v) end end)
+    TabCombat:CriarKeybind("Atalho: Tela Esticada", Enum.KeyCode.Z, function(key, isPressed)
+        if isPressed and Hub.Features.Visuals then
+            local estado = not Hub.Features.Visuals.Settings.StretchedEnabled
+            Hub.Features.Visuals:ToggleStretched(estado)
+            Hub.UI.Library:Notificar("Tela Esticada", estado and "Ligado" or "Desligado", 2)
+        end
+    end)
     TabCombat:CriarSlider("Campo de Visão (Zoom)", 70, 120, 100, function(v) if Hub.Features.Visuals then Hub.Features.Visuals.Settings.FOVValue = v end end)
 
     TabCombat:CriarLabel("---  VISUAL (ESP)  ---", Color3.fromRGB(80, 255, 120))
@@ -46,20 +64,31 @@ function Interface:Load(Hub, Config, State)
     TabCombat:CriarToggle("Ocultar Aliados (Team Check)", false, function(v) if Hub.Features.ESP then Hub.Features.ESP.Settings.TeamCheck = v end end)
     TabCombat:CriarToggle("Time / Sigla [ESP]", false, function(v) if Hub.Features.ESP then Hub.Features.ESP.Settings.TeamText = v end end)
     TabCombat:CriarToggle("Health Bar (Barra de Vida)", false, function(v) if Hub.Features.ESP then Hub.Features.ESP.Settings.HealthBar = v end end)
+    
     TabCombat:CriarToggle("Box (Caixa)", false, function(v) if Hub.Features.ESP then Hub.Features.ESP.Settings.Box = v end end)
-    TabCombat:CriarDropdown("↳ Cor da Caixa", coresNomes, function(v) if Hub.Features.ESP then Hub.Features.ESP.Settings.BoxColor = coresMap[v] end end)
+    TabCombat:CriarColorPicker("↳ Cor da Caixa", Color3.fromRGB(255, 255, 255), function(color) if Hub.Features.ESP then Hub.Features.ESP.Settings.BoxColor = color end end)
+    
     TabCombat:CriarToggle("Skeleton (Esqueleto)", false, function(v) if Hub.Features.ESP then Hub.Features.ESP.Settings.Skeleton = v end end)
-    TabCombat:CriarDropdown("↳ Cor do Esqueleto", coresNomes, function(v) if Hub.Features.ESP then Hub.Features.ESP.Settings.SkeletonColor = coresMap[v] end end)
+    TabCombat:CriarColorPicker("↳ Cor do Esqueleto", Color3.fromRGB(255, 255, 255), function(color) if Hub.Features.ESP then Hub.Features.ESP.Settings.SkeletonColor = color end end)
+    
     TabCombat:CriarToggle("Tracers (Linhas)", false, function(v) if Hub.Features.ESP then Hub.Features.ESP.Settings.Tracer = v end end)
-    TabCombat:CriarDropdown("↳ Cor das Linhas", coresNomes, function(v) if Hub.Features.ESP then Hub.Features.ESP.Settings.TracerColor = coresMap[v] end end)
+    TabCombat:CriarColorPicker("↳ Cor das Linhas", Color3.fromRGB(255, 255, 255), function(color) if Hub.Features.ESP then Hub.Features.ESP.Settings.TracerColor = color end end)
 
-    -- [ ABA EXTRAS ]
+    -- [ ABA 3: EXTRAS E MEMÓRIA ]
     TabExtra:CriarLabel("---  MOVIMENTAÇÃO E FUGA  ---", Color3.fromRGB(0, 150, 255))
     TabExtra:CriarToggle("SpeedHack (Super Velocidade)", false, function(v) if Hub.Features.PlayerMods then Hub.Features.PlayerMods:ToggleSpeed(v) end end)
     TabExtra:CriarSlider("Velocidade do SpeedHack", 16, 200, 50, function(v) if Hub.Features.PlayerMods then Hub.Features.PlayerMods.Settings.SpeedValue = v end end)
     TabExtra:CriarToggle("JumpHack (Super Pulo)", false, function(v) if Hub.Features.PlayerMods then Hub.Features.PlayerMods:ToggleJumpPower(v) end end)
     TabExtra:CriarSlider("Força do Pulo", 50, 300, 100, function(v) if Hub.Features.PlayerMods then Hub.Features.PlayerMods.Settings.JumpValue = v end end)
+    
     TabExtra:CriarToggle("Noclip (Atravessar Paredes)", false, function(v) if Hub.Features.PlayerMods then Hub.Features.PlayerMods:ToggleNoclip(v) end end)
+    TabExtra:CriarKeybind("Atalho: Noclip", Enum.KeyCode.N, function(key, isPressed)
+        if isPressed and Hub.Features.PlayerMods then
+            local estado = not Hub.Features.PlayerMods.Settings.Noclip
+            Hub.Features.PlayerMods:ToggleNoclip(estado)
+            Hub.UI.Library:Notificar("Noclip", estado and "Ligado" or "Desligado", 2)
+        end
+    end)
     TabExtra:CriarToggle("Infinity Jump (Pulo Infinito)", false, function(v) if Hub.Features.PlayerMods then Hub.Features.PlayerMods:ToggleInfJump(v) end end)
 
     TabExtra:CriarLabel("---  INTELIGÊNCIA E ESPIONAGEM  ---", Color3.fromRGB(255, 80, 80))
@@ -67,11 +96,20 @@ function Interface:Load(Hub, Config, State)
     TabExtra:CriarSlider("Velocidade da FreeCam", 1, 10, 2, function(v) if Hub.Features.FreeCam then Hub.Features.FreeCam.Settings.Speed = v end end)
     TabExtra:CriarToggle("Spy Chat (Ver Chat Oculto)", false, function(v) if Hub.Features.SpyChat then Hub.Features.SpyChat:Toggle(v) end end)
 
-    TabExtra:CriarLabel("---  MEMÓRIA / CONFIGURAÇÕES  ---", Color3.fromRGB(80, 255, 120))
-    TabExtra:CriarBotao("💾 SALVAR CONFIGURAÇÕES", function() if Hub.Core.State then local s = Hub.Core.State:SaveConfig(Config); if s then Hub.UI.Library:Notificar("Sucesso!", "Salvo no celular (.json)", 3) else Hub.UI.Library:Notificar("Aviso", "Executor não suportado.", 3) end end end)
-
     TabExtra:CriarLabel("---  ESTILO DO MENU  ---", Color3.fromRGB(255, 215, 0))
+    
+    -- [NOVO]: Botão para ligar e desligar a Marca D'água
+    TabExtra:CriarToggle("Mostrar Marca D'água (FPS/Ping)", Config.Watermark, function(v) 
+        Config.Watermark = v
+        Window:SetWatermark(v)
+    end)
+    
     TabExtra:CriarDropdown("Tema da Interface", {"Crimson", "Neon Purple", "Ocean Blue", "Toxic Green", "Midnight Gold"}, function(tema) Hub.UI.Library:ChangeTheme(tema); Hub.UI.Library:Notificar("Tema", "Atualizado para " .. tema, 3) end)
+
+    TabExtra:CriarLabel("---  MEMÓRIA / CONFIGURAÇÕES  ---", Color3.fromRGB(80, 255, 120))
+    TabExtra:CriarBotao("💾 SALVAR CONFIGURAÇÕES", function()
+        if Hub.Core.State then local sucesso = Hub.Core.State:SaveConfig(Config); if sucesso then Hub.UI.Library:Notificar("Sucesso!", "Salvo no celular (.json)", 3) else Hub.UI.Library:Notificar("Aviso", "Executor não suportado.", 3) end end
+    end)
 
     TabExtra:CriarLabel("---  UTILITÁRIOS E FUGA  ---", Color3.fromRGB(245, 245, 245))
     TabExtra:CriarToggle("Auto Equipar Arma (Treino)", Config.AutoEquip, function(v) Config.AutoEquip = v end)
@@ -80,20 +118,28 @@ function Interface:Load(Hub, Config, State)
     TabExtra:CriarBotao("🌐 SERVER HOP (Fugir de sala)", function() Hub.UI.Library:Notificar("Server Hop", "Buscando servidor vazio...", 5); Hub.Core.Utils:ServerHop() end)
     TabExtra:CriarBotao("⚡ FPS BOOST MÁXIMO (Anti-Lag)", function() Hub.Core.Utils:AntiLag(); Hub.UI.Library:Notificar("Otimização", "Gráficos reduzidos.", 3, "success") end)
 
-    -- [ ABA PERFIL ]
+    -- [ ABA 4: PERFIL ]
     TabProf:CriarPerfil()
     TabProf:CriarBotao("FECHAR MENU (PANIC)", function() 
         State.IsActive = false 
         if Hub.Features then
-            for _, f in pairs(Hub.Features) do
-                if type(f.Toggle) == "function" then pcall(function() f:Toggle(false) end)
-                elseif f.Settings and f.Settings.Enabled ~= nil then f.Settings.Enabled = false end
+            for _, feature in pairs(Hub.Features) do
+                if feature and type(feature.Toggle) == "function" then pcall(function() feature:Toggle(false) end)
+                elseif feature and feature.Settings and feature.Settings.Enabled ~= nil then feature.Settings.Enabled = false end
             end
             if Hub.Features.PlayerMods then Hub.Features.PlayerMods:DisableAll() end
             if Hub.Features.Visuals then Hub.Features.Visuals:ToggleStretched(false) end
             if Hub.Features.Aimbot then Hub.Features.Aimbot.Settings.ShowFOV = false; Hub.Features.Aimbot.Settings.HitboxExpander = false end
         end
-        local cgui = game:GetService("CoreGui"); if cgui:FindFirstChild("CrimsonUI") then cgui.CrimsonUI:Destroy() end; if cgui:FindFirstChild("InxiterFOVMobile") then cgui.InxiterFOVMobile:Destroy() end; if cgui:FindFirstChild("InxiterSpyChat") then cgui.InxiterSpyChat:Destroy() end
+        
+        -- [NOVO]: Desliga a Watermark ao fechar o menu
+        Window:SetWatermark(false)
+        
+        local CoreGui = game:GetService("CoreGui")
+        if CoreGui:FindFirstChild("CrimsonUI") then CoreGui["CrimsonUI"]:Destroy() end
+        if CoreGui:FindFirstChild("InxiterFOVMobile") then CoreGui["InxiterFOVMobile"]:Destroy() end
+        if CoreGui:FindFirstChild("InxiterSpyChat") then CoreGui["InxiterSpyChat"]:Destroy() end
     end)
 end
+
 return Interface
