@@ -6,7 +6,8 @@ local fileName = folderName .. "/Config.json"
 
 local DefaultConfig = {
     Mode = "Canguru", Delay = 1.4, StartNum = 0, Quantity = 130,
-    IsCountdown = false, AutoCrouch = false, AutoEquip = false, AutoRejoin = false
+    IsCountdown = false, AutoCrouch = false, AutoEquip = false, AutoRejoin = false,
+    Watermark = true -- [NOVO]: Salva se a marca d'água está ligada ou não
 }
 
 local RuntimeState = { IsRunning = false, IsActive = true }
@@ -17,7 +18,6 @@ function StateManager:LoadConfig()
     if not isfile or not readfile then return DefaultConfig end
     if isfile(fileName) then
         local success, decoded = pcall(function() return HttpService:JSONDecode(readfile(fileName)) end)
-        -- [MELHORIA]: Proteção contra JSON Corrompido
         if success and type(decoded) == "table" then
             for key, value in pairs(DefaultConfig) do
                 if decoded[key] == nil then decoded[key] = value end
