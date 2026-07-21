@@ -1,4 +1,4 @@
---[[ 1NXITER HUB - LOADER v2.4.0 (VERSÃO RAYFIELD) ]]
+--[[ 1NXITER HUB - MAIN LOADER v2.5.0 (RAYFIELD EDITION) ]]
 
 if getgenv().InxiterHubLoaded then
     return warn("⚠️ O Hub já está em execução!")
@@ -7,31 +7,30 @@ end
 if not game.HttpGet or not loadstring then
     game.StarterGui:SetCore("SendNotification", {
         Title = "ERRO FATAL",
-        Text = "Executor não suportado.",
+        Text = "Seu executor não suporta loadstring ou HttpGet.",
         Duration = 10,
     })
     return
 end
 
 -- ======================================================
--- Configuração
+-- Configuração de Caminhos (Iniciais Maiúsculas)
 -- ======================================================
-local VERSION = "v2.4.0"
+local VERSION = "v2.5.0"
 local BASE_URL = "https://raw.githubusercontent.com/Raphael99090/Teste/main/"
-local MAX_RETRIES = 3
-local RETRY_DELAY = 0.6
 local GLOBAL_TIMEOUT = 30 
 
+-- [AJUSTE]: Todos os nomes de arquivos agora começam com Maiúscula
 local FilesToLoad = {
     Core = { "Utils", "State" },
-    UI = { "Interface" }, -- [AJUSTE]: Removido "Library" daqui
+    UI = { "Interface" }, 
     Features = { "AutoTrain", "Aimbot", "ESP", "SpyChat", "FreeCam", "Visuals", "PlayerMods" },
 }
 
 local Hub = { Core = {}, UI = {}, Features = {} }
 
 -- ======================================================
--- Helpers (Mantidos iguais)
+-- Sistema de Download
 -- ======================================================
 local function SafeNotify(title, text, duration)
     pcall(function()
@@ -43,107 +42,58 @@ local function SafeNotify(title, text, duration)
     end)
 end
 
-local function FailFatal(title, text)
-    warn("❌ " .. title .. ": " .. text)
-    SafeNotify(title, text, 10)
-    getgenv().InxiterHubLoaded = false
-end
-
 local function DownloadFile(folder, file)
+    -- O caminho agora respeita as Maiúsculas: Ex: .../Core/Utils.lua
     local url = BASE_URL .. folder .. "/" .. file .. ".lua?nocache=" .. tostring(math.random(1e6, 9e6))
-    local lastError = "desconhecido"
-
-    for attempt = 1, MAX_RETRIES do
-        local success, code = pcall(function()
-            return game:HttpGet(url)
-        end)
-
-        if success and code and code ~= "" and not code:match("^404") then
-            return true, code
-        end
-
-        lastError = (not success and tostring(code)) or (code == "" and "resposta vazia") or "404 not found"
-
-        if attempt < MAX_RETRIES then
-            task.wait(RETRY_DELAY * attempt)
-        end
+    local success, code = pcall(function() return game:HttpGet(url) end)
+    
+    if success and code and code ~= "" and not code:match("^404") then
+        return true, code
     end
-
-    return false, lastError
+    return false, "Falha no download (404 ou Conexão)"
 end
 
 -- ======================================================
--- Etapa 1: Download (Mantida igual)
+-- Carregamento Assíncrono
 -- ======================================================
-local status = {} 
 local pendingCount = 0
-
-for folder, list in pairs(FilesToLoad) do
-    status[folder] = {}
-    pendingCount = pendingCount + #list
-end
+for _, list in pairs(FilesToLoad) do pendingCount = pendingCount + #list end
 
 for folder, list in pairs(FilesToLoad) do
     for _, file in pairs(list) do
         task.spawn(function()
             local ok, codeOrErr = DownloadFile(folder, file)
-
             if ok then
-                local func, compileErr = loadstring(codeOrErr)
+                local func, err = loadstring(codeOrErr)
                 if func then
                     local runOk, result = pcall(func)
                     if runOk then
                         Hub[folder][file] = result
-                        status[folder][file] = { ok = true }
                     else
-                        status[folder][file] = { ok = false, error = "erro ao executar: " .. tostring(result) }
+                        warn("❌ Erro ao rodar " .. file .. ": " .. tostring(result))
                     end
                 else
-                    status[folder][file] = { ok = false, error = "erro ao compilar: " .. tostring(compileErr) }
+                    warn("❌ Erro ao compilar " .. file .. ": " .. tostring(err))
                 end
             else
-                status[folder][file] = { ok = false, error = "erro ao baixar: " .. tostring(codeOrErr) }
+                warn("⚠️ Arquivo não encontrado: " .. folder .. "/" .. file)
             end
-
             pendingCount = pendingCount - 1
         end)
     end
 end
 
-do
-    local start = os.clock()
-    while pendingCount > 0 do
-        if os.clock() - start > GLOBAL_TIMEOUT then
-            FailFatal("TIMEOUT", "O carregamento excedeu " .. GLOBAL_TIMEOUT .. "s.")
-            return
-        end
-        task.wait(0.1)
-    end
-end
+-- Espera os arquivos baixarem
+local start = os.clock()
+repeat task.wait(0.1) until pendingCount <= 0 or (os.clock() - start) > GLOBAL_TIMEOUT
 
--- ======================================================
--- Etapa 2: Verificação de integridade
--- ======================================================
-local failedList = {}
-
-for folder, list in pairs(FilesToLoad) do
-    for _, file in pairs(list) do
-        local s = status[folder][file]
-        if not s or not s.ok or type(Hub[folder][file]) ~= "table" then
-            local reason = (s and s.error) or "retornou valor inválido"
-            table.insert(failedList, folder .. "/" .. file .. " → " .. reason)
-        end
-    end
-end
-
-if #failedList > 0 then
-    warn("❌ Módulos com falha:\n  " .. table.concat(failedList, "\n  "))
-    FailFatal("ERRO DE INTEGRIDADE", #failedList .. " módulo(s) falharam.")
+if pendingCount > 0 then
+    SafeNotify("ERRO", "Tempo limite excedido ou arquivos faltando.", 10)
     return
 end
 
 -- ======================================================
--- Etapa 3: Inicialização da UI (Rayfield)
+-- Inicialização Final
 -- ======================================================
 local initSuccess, initError = pcall(function()
     getgenv().InxiterHubLoaded = true
@@ -151,29 +101,24 @@ local initSuccess, initError = pcall(function()
     local Config = Hub.Core.State:LoadConfig()
     local State = Hub.Core.State:GetRuntimeState()
 
-    -- [AJUSTE]: Monitorando o fechamento da Rayfield
-    -- A Rayfield por padrão cria uma ScreenGui chamada "Rayfield" ou com o nome do Hub.
-    local conn
-    conn = game:GetService("CoreGui").ChildRemoved:Connect(function(child)
-        if child.Name == "Rayfield" or child:FindFirstChild("Main") then 
-            getgenv().InxiterHubLoaded = false
-            if conn then
-                conn:Disconnect()
-                conn = nil
+    -- Monitor de Fechamento
+    task.spawn(function()
+        local coreGui = game:GetService("CoreGui")
+        while getgenv().InxiterHubLoaded do
+            if not coreGui:FindFirstChild("Rayfield") and not coreGui:FindFirstChild("1NXITER HUB") then
+                getgenv().InxiterHubLoaded = false
+                break
             end
+            task.wait(2)
         end
     end)
 
     Hub.Core.Utils:AntiAFK(State)
     Hub.Core.Utils:AutoRejoin(Config)
-    
-    -- Inicia a Interface (que agora carrega a Rayfield internamente)
     Hub.UI.Interface:Load(Hub, Config, State)
 end)
 
-if initSuccess then
-    SafeNotify("1NXITER HUB", "Carregado " .. VERSION .. " com sucesso!", 3)
-else
+if not initSuccess then
     getgenv().InxiterHubLoaded = false
-    FailFatal("ERRO AO CONSTRUIR UI", tostring(initError))
+    warn("❌ Erro na inicialização: " .. tostring(initError))
 end
