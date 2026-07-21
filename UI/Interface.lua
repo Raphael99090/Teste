@@ -1,133 +1,152 @@
 local Interface = {}
 
 function Interface:Load(Hub, Config, State)
-    -- Garante que a Config não tenha valores nulos que quebrem a Rayfield
-    Config.Mode = Config.Mode or "Canguru"
-    Config.Delay = Config.Delay or 1.4
-    Config.StartNum = Config.StartNum or 0
-    Config.Quantity = Config.Quantity or 130
-
+    -- 1. LIMPEZA DE DADOS (Mata o erro "index nil with number")
+    -- Garantimos que todos os valores que vão para Sliders sejam NÚMEROS
+    local safe = {
+        Delay = tonumber(Config.Delay) or 1.4,
+        StartNum = tonumber(Config.StartNum) or 0,
+        Quantity = tonumber(Config.Quantity) or 130,
+        Speed = 50,
+        FOV = 150
+    }
+    
     local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
     local Window = Rayfield:CreateWindow({
         Name = "1NXITER HUB | V2.5",
         LoadingTitle = "Inxiter System",
-        LoadingSubtitle = "por Raphael99090",
-        ConfigurationSaving = { Enabled = false }, -- Desativado temporariamente para isolar o erro
+        LoadingSubtitle = "Carregando Abas...",
+        ConfigurationSaving = { Enabled = false },
         KeySystem = false
     })
 
-    -- Criando as Abas sem ícones para evitar erro de carregamento de asset
-    local TabHome   = Window:CreateTab("Treino")
-    local TabCombat = Window:CreateTab("Combate")
-    local TabExtra  = Window:CreateTab("Extras")
-    local TabProf   = Window:CreateTab("Perfil")
+    -- 2. CRIAR TODAS AS ABAS PRIMEIRO
+    local TabHome   = Window:CreateTab("⚔️ Treino")
+    local TabCombat = Window:CreateTab("🎯 Combate")
+    local TabExtra  = Window:CreateTab("🚀 Extras")
+    local TabProf   = Window:CreateTab("👤 Perfil")
 
     -- ==========================================
-    -- [ ABA 1: TREINO ]
+    -- [ CONTEÚDO: ABA TREINO ]
     -- ==========================================
-    TabHome:CreateSection("Painel Principal")
-    local LblCount = TabHome:CreateLabel("AGUARDANDO...")
+    pcall(function()
+        TabHome:CreateSection("Status")
+        local LblCount = TabHome:CreateLabel("AGUARDANDO...")
 
-    TabHome:CreateDropdown({
-        Name = "Modo de Treino",
-        Options = {"Canguru", "Flexão", "Polichinelo"},
-        CurrentOption = Config.Mode,
-        Callback = function(Option)
-            -- A Rayfield às vezes retorna uma tabela {"Opção"} ou só a string "Opção"
-            if type(Option) == "table" then
-                Config.Mode = Option[1]
-            else
-                Config.Mode = Option
-            end
-        end,
-    })
+        TabHome:CreateDropdown({
+            Name = "Modo de Treino",
+            Options = {"Canguru", "Flexão", "Polichinelo"},
+            CurrentOption = "Canguru",
+            Callback = function(Option)
+                Config.Mode = type(Option) == "table" and Option[1] or Option
+            end,
+        })
 
-    TabHome:CreateButton({
-        Name = "INICIAR / PARAR TREINO",
-        Callback = function()
-            if Hub.Features.AutoTrain then
-                Hub.Features.AutoTrain:Toggle(Config, State, Hub, function(texto)
-                    LblCount:Set(texto)
-                end)
-            end
-        end,
-    })
+        TabHome:CreateButton({
+            Name = "INICIAR / PARAR TREINO",
+            Callback = function()
+                if Hub.Features.AutoTrain then
+                    Hub.Features.AutoTrain:Toggle(Config, State, Hub, function(texto)
+                        LblCount:Set(texto)
+                    end)
+                end
+            end,
+        })
 
-    TabHome:CreateSection("Ajustes")
-    TabHome:CreateInput({
-        Name = "Número Inicial",
-        PlaceholderText = "Atual: " .. tostring(Config.StartNum),
-        Callback = function(v) Config.StartNum = tonumber(v) or 0 end,
-    })
-    
-    TabHome:CreateSlider({
-        Name = "Velocidade (Delay)",
-        Min = 0.5, Max = 5.0, CurrentValue = Config.Delay,
-        Callback = function(v) Config.Delay = v end,
-    })
+        TabHome:CreateSlider({
+            Name = "Velocidade (Delay)",
+            Min = 0.5, Max = 5.0, CurrentValue = safe.Delay,
+            Callback = function(v) Config.Delay = v end,
+        })
+    end)
 
     -- ==========================================
-    -- [ ABA 2: COMBATE ]
+    -- [ CONTEÚDO: ABA COMBATE ]
     -- ==========================================
-    TabCombat:CreateSection("Aimbot")
-    TabCombat:CreateToggle({
-        Name = "Ativar Aimbot",
-        CurrentValue = false,
-        Callback = function(v) if Hub.Features.Aimbot then Hub.Features.Aimbot.Settings.Enabled = v end end,
-    })
-    TabCombat:CreateSlider({
-        Name = "Raio do FOV",
-        Min = 50, Max = 600, CurrentValue = 150,
-        Callback = function(v) if Hub.Features.Aimbot then Hub.Features.Aimbot.Settings.FOVRadius = v end end,
-    })
+    pcall(function()
+        TabCombat:CreateSection("Aimbot")
+        
+        TabCombat:CreateToggle({
+            Name = "Ativar Aimbot",
+            CurrentValue = false,
+            Callback = function(v) 
+                if Hub.Features.Aimbot then Hub.Features.Aimbot.Settings.Enabled = v end 
+            end,
+        })
 
-    TabCombat:CreateSection("Visual (ESP)")
-    TabCombat:CreateToggle({
-        Name = "Ativar ESP",
-        CurrentValue = false,
-        Callback = function(v) if Hub.Features.ESP then Hub.Features.ESP:Toggle(v) end end,
-    })
+        TabCombat:CreateSlider({
+            Name = "Raio do FOV",
+            Min = 50, Max = 600, CurrentValue = safe.FOV,
+            Callback = function(v) 
+                if Hub.Features.Aimbot then Hub.Features.Aimbot.Settings.FOVRadius = v end 
+            end,
+        })
 
-    -- ==========================================
-    -- [ ABA 3: EXTRAS ]
-    -- ==========================================
-    TabExtra:CreateSection("Movimentação")
-    TabExtra:CreateSlider({
-        Name = "Velocidade (Speed)",
-        Min = 16, Max = 300, CurrentValue = 50,
-        Callback = function(v) if Hub.Features.PlayerMods then Hub.Features.PlayerMods.Settings.SpeedValue = v end end,
-    })
-    TabExtra:CreateToggle({
-        Name = "Noclip",
-        CurrentValue = false,
-        Callback = function(v) if Hub.Features.PlayerMods then Hub.Features.PlayerMods:ToggleNoclip(v) end end,
-    })
-
-    TabExtra:CreateSection("Utilidades")
-    TabExtra:CreateButton({
-        Name = "💾 Salvar Configurações",
-        Callback = function() 
-            if Hub.Core.State then Hub.Core.State:SaveConfig(Config) end
-            Rayfield:Notify({Title = "Sucesso", Content = "Configurações salvas!", Duration = 2})
-        end,
-    })
-    TabExtra:CreateButton({
-        Name = "⚡ FPS Boost",
-        Callback = function() Hub.Core.Utils:AntiLag() end,
-    })
+        TabCombat:CreateSection("Visual (ESP)")
+        
+        TabCombat:CreateToggle({
+            Name = "Ativar ESP Principal",
+            CurrentValue = false,
+            Callback = function(v) 
+                if Hub.Features.ESP then Hub.Features.ESP:Toggle(v) end 
+            end,
+        })
+    end)
 
     -- ==========================================
-    -- [ ABA 4: PERFIL ]
+    -- [ CONTEÚDO: ABA EXTRAS ]
     -- ==========================================
-    TabProf:CreateLabel("Jogador: " .. game.Players.LocalPlayer.Name)
-    TabProf:CreateButton({
-        Name = "FECHAR MENU",
-        Callback = function() 
-            Rayfield:Destroy() 
-            getgenv().InxiterHubLoaded = false
-        end,
-    })
+    pcall(function()
+        TabExtra:CreateSection("Movimentação")
+        
+        TabExtra:CreateSlider({
+            Name = "Velocidade (WalkSpeed)",
+            Min = 16, Max = 300, CurrentValue = safe.Speed,
+            Callback = function(v) 
+                if Hub.Features.PlayerMods then Hub.Features.PlayerMods.Settings.SpeedValue = v end 
+            end,
+        })
+
+        TabExtra:CreateToggle({
+            Name = "Noclip (Atravessar Paredes)",
+            CurrentValue = false,
+            Callback = function(v) 
+                if Hub.Features.PlayerMods then Hub.Features.PlayerMods:ToggleNoclip(v) end 
+            end,
+        })
+
+        TabExtra:CreateSection("Sistema")
+        
+        TabExtra:CreateButton({
+            Name = "⚡ FPS Boost (Anti-Lag)",
+            Callback = function() Hub.Core.Utils:AntiLag() end,
+        })
+
+        TabExtra:CreateButton({
+            Name = "💾 Salvar Configurações",
+            Callback = function() 
+                if Hub.Core.State then Hub.Core.State:SaveConfig(Config) end
+                Rayfield:Notify({Title = "Salvo", Content = "Configurações salvas!", Duration = 2})
+            end,
+        })
+    end)
+
+    -- ==========================================
+    -- [ CONTEÚDO: ABA PERFIL ]
+    -- ==========================================
+    pcall(function()
+        TabProf:CreateSection("Informações")
+        TabProf:CreateLabel("Jogador: " .. game.Players.LocalPlayer.Name)
+        
+        TabProf:CreateButton({
+            Name = "FECHAR MENU",
+            Callback = function() 
+                Rayfield:Destroy() 
+                getgenv().InxiterHubLoaded = false
+            end,
+        })
+    end)
 end
 
 return Interface
