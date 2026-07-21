@@ -1,30 +1,23 @@
 local ESP = {}
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
-
-local Camera = Workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
-ESP.Settings = { 
-    Enabled = false, 
-    TeamCheck = false, 
-    Box = false, 
-    BoxColor = Color3.fromRGB(255, 255, 255), 
-    Skeleton = false, 
-    SkeletonColor = Color3.fromRGB(255, 255, 255), 
-    Tracer = false, 
-    TracerColor = Color3.fromRGB(255, 255, 255), 
-    TeamText = false, 
-    HealthBar = false, 
-    ColorVisible = Color3.fromRGB(0, 255, 0), 
-    ColorHidden = Color3.fromRGB(255, 0, 0),
+ESP.Settings = {
+    Enabled = false,
+    TeamCheck = false,
+    Aura = false,
+    Box = false,
+    Skeleton = false,
+    AuraColor = Color3.fromRGB(255, 0, 0),
+    BoxColor = Color3.fromRGB(255, 255, 255),
+    SkeletonColor = Color3.fromRGB(255, 255, 255),
+    AuraTransparency = 0.5,
     Thickness = 1.5
 }
 
-ESP.Cache = {}
+ESP.Cache = {} -- nil = não tentado, false = falhou/sem suporte, table = sucesso
 
--- Mapas de Ossos para R15 e R6
 local R15Bones = {
     {"Head", "UpperTorso"}, {"UpperTorso", "LowerTorso"}, {"UpperTorso", "LeftUpperArm"},
     {"LeftUpperArm", "LeftLowerArm"}, {"LeftLowerArm", "LeftHand"}, {"UpperTorso", "RightUpperArm"},
@@ -32,191 +25,157 @@ local R15Bones = {
     {"LeftUpperLeg", "LeftLowerLeg"}, {"LeftLowerLeg", "LeftFoot"}, {"LowerTorso", "RightUpperLeg"},
     {"RightUpperLeg", "RightLowerLeg"}, {"RightLowerLeg", "RightFoot"}
 }
-local R6Bones = {
-    {"Head", "Torso"}, {"Torso", "Left Arm"}, {"Torso", "Right Arm"},
-    {"Torso", "Left Leg"}, {"Torso", "Right Leg"}
-}
 
--- Função Auxiliar para Criar Desenhos
-local function CreateDrawing(class, properties)
-    local drawing = Drawing.new(class)
-    for prop, val in pairs(properties) do
-        drawing[prop] = val
+local function CreateDrawing(class, props)
+    local ok, drawing = pcall(function()
+        local d = Drawing.new(class)
+        for k, v in pairs(props) do d[k] = v end
+        return d
+    end)
+    return ok and drawing or nil
+end
+
+-- [OTIMIZAÇÃO]: HideVisuals definida fora do loop (Evita alocação de memória excessiva)
+local function HideVisuals(data)
+    if not data then return end
+    data.Box.Visible = false
+    data.BoxOutline.Visible = false
+    for _, l in pairs(data.Skeleton) do l.Visible = false end
+end
+
+local function UpdateAura(player, char)
+    if not char then return end 
+    local highlight = char:FindFirstChild("InxiterAura")
+    
+    if not ESP.Settings.Enabled or not ESP.Settings.Aura or (ESP.Settings.TeamCheck and player.Team == LocalPlayer.Team) then
+        if highlight then highlight:Destroy() end
+        return
     end
-    return drawing
+
+    if not highlight then
+        highlight = Instance.new("Highlight")
+        highlight.Name = "InxiterAura"
+        highlight.Parent = char
+    end
+
+    highlight.FillColor = ESP.Settings.AuraColor
+    highlight.OutlineColor = Color3.new(1,1,1)
+    highlight.FillAlpha = ESP.Settings.AuraTransparency
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 end
 
 function ESP:CreateDrawings(player)
-    if ESP.Cache[player] then return end
+    if ESP.Cache[player] ~= nil then return end -- Já existe ou já falhou
     
-    local cache = {
-        BoxOutline = CreateDrawing("Square", {Thickness = 3, Filled = false, Transparency = 1, Color = Color3.new(0,0,0), Visible = false}),
-        Box = CreateDrawing("Square", {Thickness = ESP.Settings.Thickness, Filled = false, Transparency = 1, Visible = false}),
-        HealthBg = CreateDrawing("Line", {Thickness = 3, Transparency = 1, Color = Color3.new(0,0,0), Visible = false}),
-        Health = CreateDrawing("Line", {Thickness = ESP.Settings.Thickness, Transparency = 1, Visible = false}),
-        Tracer = CreateDrawing("Line", {Thickness = ESP.Settings.Thickness, Transparency = 1, Visible = false}),
-        TeamText = CreateDrawing("Text", {Size = 13, Center = true, Outline = true, Font = 2, Transparency = 1, Visible = false}),
-        Skeleton = {}
-    }
-    
+    local lines = {}
+    local lineSuccess = true
     for i = 1, 15 do
-        cache.Skeleton[i] = CreateDrawing("Line", {Thickness = ESP.Settings.Thickness, Transparency = 1, Visible = false})
+        local line = CreateDrawing("Line", {Thickness = ESP.Settings.Thickness, Transparency = 1, Visible = false})
+        if line then lines[i] = line else lineSuccess = false end
     end
-    
-    ESP.Cache[player] = cache
+
+    local box = CreateDrawing("Square", {Thickness = ESP.Settings.Thickness, Filled = false, Transparency = 1, Visible = false})
+    local outline = CreateDrawing("Square", {Thickness = ESP.Settings.Thickness + 1, Color = Color3.new(0,0,0), Filled = false, Transparency = 0.5, Visible = false})
+
+    if box and outline and lineSuccess then
+        ESP.Cache[player] = {
+            Box = box,
+            BoxOutline = outline,
+            Skeleton = lines
+        }
+    else
+        -- [CORREÇÃO]: Cache Negativo (Não tenta de novo se o executor não suportar)
+        ESP.Cache[player] = false 
+        warn("⚠️ Drawing API sem suporte total para player: " .. player.Name)
+    end
 end
 
 function ESP:RemoveDrawings(player)
-    local cache = ESP.Cache[player]
-    if cache then
-        cache.Box:Remove()
-        cache.BoxOutline:Remove()
-        cache.HealthBg:Remove()
-        cache.Health:Remove()
-        cache.Tracer:Remove()
-        cache.TeamText:Remove()
-        for _, line in pairs(cache.Skeleton) do line:Remove() end
-        ESP.Cache[player] = nil
+    local data = ESP.Cache[player]
+    if data then -- Se for false (cache negativo) ou nil, não faz nada
+        pcall(function()
+            data.Box:Remove()
+            data.BoxOutline:Remove()
+            for _, line in pairs(data.Skeleton) do line:Remove() end
+        end)
     end
-end
-
--- Wall Check para mudar a cor do ESP
-local function CheckVisibility(char, part)
-    local params = RaycastParams.new()
-    params.FilterDescendantsInstances = {LocalPlayer.Character, Camera, char}
-    params.FilterType = Enum.RaycastFilterType.Exclude
-    local result = Workspace:Raycast(Camera.CFrame.Position, part.Position - Camera.CFrame.Position, params)
-    return result == nil
+    ESP.Cache[player] = nil
 end
 
 function ESP:Update()
+    local Camera = workspace.CurrentCamera
+    if not Camera then return end
+
     for _, player in pairs(Players:GetPlayers()) do
         if player == LocalPlayer then continue end
         
-        local cache = ESP.Cache[player]
-        if not cache then 
-            ESP:CreateDrawings(player)
-            cache = ESP.Cache[player]
-        end
-
         local char = player.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        local hum = char and char:FindFirstChild("Humanoid")
-        local head = char and char:FindFirstChild("Head")
-
-        -- Resetar Visibilidade (Optimization)
-        local function HideAll()
-            cache.Box.Visible = false; cache.BoxOutline.Visible = false
-            cache.Health.Visible = false; cache.HealthBg.Visible = false
-            cache.Tracer.Visible = false; cache.TeamText.Visible = false
-            for _, line in pairs(cache.Skeleton) do line.Visible = false end
-        end
-
-        if not ESP.Settings.Enabled or not char or not root or not hum or hum.Health <= 0 then
-            HideAll()
-            continue
-        end
-
-        -- Team Check
-        if ESP.Settings.TeamCheck and player.Team == LocalPlayer.Team then
-            HideAll()
-            continue
-        end
-
-        local pos, onScreen = Camera:WorldToViewportPoint(root.Position)
-        if not onScreen then
-            HideAll()
-            continue
-        end
-
-        -- Cores Dinâmicas
-        local isVisible = CheckVisibility(char, head or root)
-        local renderColor = isVisible and ESP.Settings.ColorVisible or ESP.Settings.ColorHidden
         
-        -- Cálculos de Caixa (Ajustado para ser mais preciso)
-        local headPos = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
-        local legPos = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
-        local boxHeight = math.abs(headPos.Y - legPos.Y)
-        local boxWidth = boxHeight * 0.6
-        local boxPos = Vector2.new(pos.X - boxWidth/2, pos.Y - boxHeight/2)
-
-        -- [1] BOX
-        if ESP.Settings.Box then
-            cache.BoxOutline.Size = Vector2.new(boxWidth, boxHeight)
-            cache.BoxOutline.Position = boxPos
-            cache.BoxOutline.Visible = true
-
-            cache.Box.Size = cache.BoxOutline.Size
-            cache.Box.Position = cache.BoxOutline.Position
-            cache.Box.Color = (ESP.Settings.BoxColor == Color3.fromRGB(255,255,255)) and renderColor or ESP.Settings.BoxColor
-            cache.Box.Visible = true
-        else
-            cache.Box.Visible = false; cache.BoxOutline.Visible = false
+        -- Garante tentativa única de criação
+        if ESP.Cache[player] == nil then 
+            ESP:CreateDrawings(player) 
         end
 
-        -- [2] HEALTH BAR
-        if ESP.Settings.HealthBar then
-            local healthPercent = hum.Health / hum.MaxHealth
-            local barHeight = boxHeight * healthPercent
-            local barPos = boxPos.X - 6
-            
-            cache.HealthBg.From = Vector2.new(barPos, boxPos.Y + boxHeight)
-            cache.HealthBg.To = Vector2.new(barPos, boxPos.Y)
-            cache.HealthBg.Visible = true
+        local data = ESP.Cache[player] -- Pode ser table ou false
+        
+        -- [AURA]: Funciona mesmo se Drawing API falhar (Independente do cache data)
+        UpdateAura(player, char)
 
-            cache.Health.From = Vector2.new(barPos, boxPos.Y + boxHeight)
-            cache.Health.To = Vector2.new(barPos, boxPos.Y + boxHeight - barHeight)
-            cache.Health.Color = Color3.fromHSV(healthPercent * 0.3, 1, 1) -- Verde -> Vermelho
-            cache.Health.Visible = true
-        else
-            cache.Health.Visible = false; cache.HealthBg.Visible = false
-        end
+        -- [DRAWING CHECK]: Se falhou na criação, pula lógica de Box/Skeleton
+        if not data then continue end
 
-        -- [3] TEAM TEXT
-        if ESP.Settings.TeamText then
-            local tName = player.Team and player.Team.Name or "Sem Time"
-            cache.TeamText.Text = string.format("[%s]", tName)
-            cache.TeamText.Position = Vector2.new(pos.X, boxPos.Y - 15)
-            cache.TeamText.Color = player.TeamColor.Color
-            cache.TeamText.Visible = true
-        else
-            cache.TeamText.Visible = false
-        end
+        if ESP.Settings.Enabled and char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") and char.Humanoid.Health > 0 then
+            local root = char.HumanoidRootPart
+            local head = char:FindFirstChild("Head") or root
+            local pos, onScreen = Camera:WorldToViewportPoint(root.Position)
+            local isTeammate = ESP.Settings.TeamCheck and player.Team == LocalPlayer.Team
 
-        -- [4] SKELETON
-        if ESP.Settings.Skeleton then
-            local bones = hum.RigType == Enum.HumanoidRigType.R15 and R15Bones or R6Bones
-            for i, boneGroup in pairs(bones) do
-                local p1 = char:FindFirstChild(boneGroup[1])
-                local p2 = char:FindFirstChild(boneGroup[2])
-                if p1 and p2 then
-                    local v1, os1 = Camera:WorldToViewportPoint(p1.Position)
-                    local v2, os2 = Camera:WorldToViewportPoint(p2.Position)
-                    if os1 or os2 then
-                        local line = cache.Skeleton[i]
-                        line.From = Vector2.new(v1.X, v1.Y)
-                        line.To = Vector2.new(v2.X, v2.Y)
-                        line.Color = (ESP.Settings.SkeletonColor == Color3.fromRGB(255,255,255)) and renderColor or ESP.Settings.SkeletonColor
-                        line.Visible = true
-                    else
-                        cache.Skeleton[i].Visible = false
+            if onScreen and not isTeammate then
+                -- BOX
+                if ESP.Settings.Box then
+                    local headPos = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
+                    local legPos = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
+                    local h = math.abs(headPos.Y - legPos.Y)
+                    local w = h * 0.6
+                    local bPos = Vector2.new(pos.X - w/2, pos.Y - h/2)
+
+                    data.BoxOutline.Size = Vector2.new(w, h)
+                    data.BoxOutline.Position = bPos
+                    data.BoxOutline.Visible = true
+
+                    data.Box.Size = data.BoxOutline.Size
+                    data.Box.Position = data.BoxOutline.Position
+                    data.Box.Color = ESP.Settings.BoxColor
+                    data.Box.Visible = true
+                else
+                    data.Box.Visible = false
+                    data.BoxOutline.Visible = false
+                end
+
+                -- SKELETON
+                if ESP.Settings.Skeleton and char.Humanoid.RigType == Enum.HumanoidRigType.R15 then
+                    for i, boneGroup in pairs(R15Bones) do
+                        local p1, p2 = char:FindFirstChild(boneGroup[1]), char:FindFirstChild(boneGroup[2])
+                        local line = data.Skeleton[i]
+                        if line and p1 and p2 then
+                            local v1, os1 = Camera:WorldToViewportPoint(p1.Position)
+                            local v2, os2 = Camera:WorldToViewportPoint(p2.Position)
+                            if os1 and os2 then
+                                line.From = Vector2.new(v1.X, v1.Y)
+                                line.To = Vector2.new(v2.X, v2.Y)
+                                line.Color = ESP.Settings.SkeletonColor
+                                line.Visible = true
+                            else line.Visible = false end
+                        elseif line then line.Visible = false end
                     end
                 else
-                    cache.Skeleton[i].Visible = false
+                    for _, l in pairs(data.Skeleton) do l.Visible = false end
                 end
+            else
+                HideVisuals(data)
             end
         else
-            for _, line in pairs(cache.Skeleton) do line.Visible = false end
-        end
-
-        -- [5] TRACERS
-        if ESP.Settings.Tracer then
-            cache.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
-            cache.Tracer.To = Vector2.new(pos.X, pos.Y + (boxHeight/2))
-            cache.Tracer.Color = (ESP.Settings.TracerColor == Color3.fromRGB(255,255,255)) and renderColor or ESP.Settings.TracerColor
-            cache.Tracer.Visible = true
-        else
-            cache.Tracer.Visible = false
+            HideVisuals(data)
         end
     end
 end
@@ -225,8 +184,8 @@ function ESP:Toggle(state)
     ESP.Settings.Enabled = state
     if state then
         if not ESP.Connection then
-            ESP.Connection = RunService.RenderStepped:Connect(function()
-                ESP:Update()
+            ESP.Connection = RunService.RenderStepped:Connect(function() 
+                pcall(ESP.Update, ESP)
             end)
         end
     else
@@ -234,14 +193,15 @@ function ESP:Toggle(state)
             ESP.Connection:Disconnect()
             ESP.Connection = nil
         end
-        for player, _ in pairs(ESP.Cache) do
-            ESP:RemoveDrawings(player)
+        for p, _ in pairs(ESP.Cache) do ESP:RemoveDrawings(p) end
+        -- Limpeza de Highlights residuais
+        for _, p in pairs(Players:GetPlayers()) do
+            local h = p.Character and p.Character:FindFirstChild("InxiterAura")
+            if h then h:Destroy() end
         end
     end
 end
 
-Players.PlayerRemoving:Connect(function(player)
-    ESP:RemoveDrawings(player)
-end)
+Players.PlayerRemoving:Connect(function(p) ESP:RemoveDrawings(p) end)
 
 return ESP
