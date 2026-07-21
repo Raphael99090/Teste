@@ -1,124 +1,122 @@
---[[ 1NXITER HUB - MAIN LOADER v2.5.0 (RAYFIELD EDITION) ]]
+--[[ 
+    1NXITER HUB - LOADER v2.5.0
+    Desenvolvido por: Raphael99090
+    Biblioteca: Kavo UI
+]]
 
 if getgenv().InxiterHubLoaded then
-    return warn("⚠️ O Hub já está em execução!")
+    warn("⚠️ 1NXITER HUB já está carregado!")
+    return
 end
 
+-- Verificação de Executor
 if not game.HttpGet or not loadstring then
     game.StarterGui:SetCore("SendNotification", {
         Title = "ERRO FATAL",
-        Text = "Seu executor não suporta loadstring ou HttpGet.",
+        Text = "Seu executor não suporta o Hub (Falta HttpGet/Loadstring).",
         Duration = 10,
     })
     return
 end
 
 -- ======================================================
--- Configuração de Caminhos (Iniciais Maiúsculas)
+-- Configurações de Download
 -- ======================================================
-local VERSION = "v2.5.0"
 local BASE_URL = "https://raw.githubusercontent.com/Raphael99090/Teste/main/"
-local GLOBAL_TIMEOUT = 30 
+local VERSION = "v2.5.0"
 
--- [AJUSTE]: Todos os nomes de arquivos agora começam com Maiúscula
-local FilesToLoad = {
+-- Lista de arquivos (Exatamente como estão no GitHub)
+local Files = {
     Core = { "Utils", "State" },
-    UI = { "Interface" }, 
-    Features = { "AutoTrain", "Aimbot", "ESP", "SpyChat", "FreeCam", "Visuals", "PlayerMods" },
+    UI = { "Interface" },
+    Features = { "AutoTrain", "Aimbot", "ESP", "SpyChat", "FreeCam", "Visuals", "PlayerMods" }
 }
 
 local Hub = { Core = {}, UI = {}, Features = {} }
 
--- ======================================================
--- Sistema de Download
--- ======================================================
-local function SafeNotify(title, text, duration)
+-- Função de Notificação Inicial
+local function Notify(title, text)
     pcall(function()
         game.StarterGui:SetCore("SendNotification", {
             Title = title,
             Text = text,
-            Duration = duration or 5,
+            Duration = 5
         })
     end)
 end
 
-local function DownloadFile(folder, file)
-    -- O caminho agora respeita as Maiúsculas: Ex: .../Core/Utils.lua
-    local url = BASE_URL .. folder .. "/" .. file .. ".lua?nocache=" .. tostring(math.random(1e6, 9e6))
+-- Função de Download
+local function Download(folder, file)
+    local url = BASE_URL .. folder .. "/" .. file .. ".lua"
     local success, code = pcall(function() return game:HttpGet(url) end)
-    
-    if success and code and code ~= "" and not code:match("^404") then
-        return true, code
-    end
-    return false, "Falha no download (404 ou Conexão)"
-end
 
--- ======================================================
--- Carregamento Assíncrono
--- ======================================================
-local pendingCount = 0
-for _, list in pairs(FilesToLoad) do pendingCount = pendingCount + #list end
-
-for folder, list in pairs(FilesToLoad) do
-    for _, file in pairs(list) do
-        task.spawn(function()
-            local ok, codeOrErr = DownloadFile(folder, file)
-            if ok then
-                local func, err = loadstring(codeOrErr)
-                if func then
-                    local runOk, result = pcall(func)
-                    if runOk then
-                        Hub[folder][file] = result
-                    else
-                        warn("❌ Erro ao rodar " .. file .. ": " .. tostring(result))
-                    end
-                else
-                    warn("❌ Erro ao compilar " .. file .. ": " .. tostring(err))
-                end
+    if success and code and not code:match("^404") then
+        local func, err = loadstring(code)
+        if func then
+            local runOk, result = pcall(func)
+            if runOk then
+                return result
             else
-                warn("⚠️ Arquivo não encontrado: " .. folder .. "/" .. file)
+                warn("❌ Erro ao executar: " .. file .. " -> " .. tostring(result))
             end
-            pendingCount = pendingCount - 1
-        end)
+        else
+            warn("❌ Erro de sintaxe: " .. file .. " -> " .. tostring(err))
+        end
+    else
+        warn("❌ Erro 404: Arquivo não encontrado -> " .. url)
     end
+    return nil
 end
 
--- Espera os arquivos baixarem
-local start = os.clock()
-repeat task.wait(0.1) until pendingCount <= 0 or (os.clock() - start) > GLOBAL_TIMEOUT
+-- ======================================================
+-- Execução do Carregamento
+-- ======================================================
+Notify("1NXITER HUB", "Carregando módulos, aguarde...")
 
-if pendingCount > 0 then
-    SafeNotify("ERRO", "Tempo limite excedido ou arquivos faltando.", 10)
-    return
+-- 1. Carrega Core (Essencial)
+for _, file in pairs(Files.Core) do
+    Hub.Core[file] = Download("Core", file)
+end
+
+-- 2. Carrega UI (Interface)
+for _, file in pairs(Files.UI) do
+    Hub.UI[file] = Download("UI", file)
+end
+
+-- 3. Carrega Features (Funções do Hack)
+for _, file in pairs(Files.Features) do
+    Hub.Features[file] = Download("Features", file)
 end
 
 -- ======================================================
 -- Inicialização Final
 -- ======================================================
-local initSuccess, initError = pcall(function()
+local function Start()
+    -- Verifica se arquivos críticos foram carregados
+    if not Hub.Core.State or not Hub.UI.Interface or not Hub.Core.Utils then
+        Notify("ERRO", "Falha ao baixar arquivos críticos. Veja o F9.")
+        return
+    end
+
     getgenv().InxiterHubLoaded = true
 
+    -- Carrega Configurações Salvas
     local Config = Hub.Core.State:LoadConfig()
     local State = Hub.Core.State:GetRuntimeState()
 
-    -- Monitor de Fechamento
-    task.spawn(function()
-        local coreGui = game:GetService("CoreGui")
-        while getgenv().InxiterHubLoaded do
-            if not coreGui:FindFirstChild("Rayfield") and not coreGui:FindFirstChild("1NXITER HUB") then
-                getgenv().InxiterHubLoaded = false
-                break
-            end
-            task.wait(2)
-        end
-    end)
-
+    -- Ativa Funções Automáticas de Fundo
     Hub.Core.Utils:AntiAFK(State)
     Hub.Core.Utils:AutoRejoin(Config)
-    Hub.UI.Interface:Load(Hub, Config, State)
-end)
 
-if not initSuccess then
+    -- Inicia a Interface Gráfica
+    Hub.UI.Interface:Load(Hub, Config, State)
+    
+    Notify("SUCESSO", "Hub " .. VERSION .. " carregado!")
+end
+
+local success, err = pcall(Start)
+if not success then
     getgenv().InxiterHubLoaded = false
-    warn("❌ Erro na inicialização: " .. tostring(initError))
+    warn("❌ FALHA AO INICIAR HUB: " .. tostring(err))
+    Notify("ERRO", "Falha na inicialização. Veja o F9.")
 end
