@@ -5,7 +5,9 @@ local FOLDER_NAME = "1NXITER_HUB"
 local FILE_NAME = FOLDER_NAME .. "/Config.json"
 local BACKUP_NAME = FOLDER_NAME .. "/Config.backup.json"
 
+-- [MELHORIA]: Configurações Padrão Organizadas
 local DefaultConfig = {
+    -- Treino
     Mode = "Canguru",
     Delay = 1.4,
     StartNum = 0,
@@ -13,140 +15,122 @@ local DefaultConfig = {
     IsCountdown = false,
     AutoCrouch = false,
     AutoEquip = false,
+    
+    -- Utilidades
     AutoRejoin = false,
     Watermark = true,
+    Theme = "Crimson",
+    
+    -- Combate (Novos padrões adicionados para evitar erros)
+    AimbotEnabled = false,
+    FOVRadius = 150,
+    Smoothness = 0.2,
+    ESPEnabled = false,
+    BoxColor = {255, 255, 255} -- JSON não salva Color3 diretamente, salvamos como tabela
 }
 
-local RuntimeState = { IsRunning = false, IsActive = true }
+local RuntimeState = { 
+    IsRunning = false, 
+    IsActive = true,
+    LoadedAt = os.date("%X")
+}
 
-local function Log(...)
-    warn("[StateManager]", ...)
+-- [HELPERS]
+local function Log(msg, isError)
+    local prefix = isError and "❌ [STATE ERROR]: " or "💾 [STATE]: "
+    print(prefix .. tostring(msg))
 end
 
--- Cópia profunda simples (evita retornar/alterar a mesma referência do DefaultConfig)
-local function DeepCopy(t)
-    local copy = {}
-    for k, v in pairs(t) do
-        if type(v) == "table" then
-            copy[k] = DeepCopy(v)
+-- Verifica se o executor suporta escrita de arquivos
+local function IsFileSystemSupported()
+    return isfile and readfile and writefile and makefolder and isfolder
+end
+
+-- Mescla a config salva com a padrão (Garante que novas opções do script apareçam para o usuário)
+local function MergeDefaults(target, source)
+    target = target or {}
+    for k, v in pairs(DefaultConfig) do
+        if source[k] == nil then
+            target[k] = v
         else
-            copy[k] = v
+            target[k] = source[k]
         end
     end
-    return copy
-end
-
--- Garante que cada valor salvo é do MESMO TIPO que o default.
--- Se o arquivo estiver corrompido/editado errado (ex: "1.4" como texto em vez de número),
--- cai no valor padrão em vez de quebrar o script depois.
-local function SanitizeConfig(decoded)
-    local clean = DeepCopy(DefaultConfig)
-
-    for key, defaultValue in pairs(DefaultConfig) do
-        local value = decoded[key]
-        if value ~= nil and type(value) == type(defaultValue) then
-            clean[key] = value
-        elseif value ~= nil then
-            Log(("Config '%s' tinha tipo inválido (esperado %s, recebido %s). Usando padrão.")
-                :format(key, type(defaultValue), type(value)))
-        end
-    end
-
-    return clean
+    return target
 end
 
 function StateManager:GetRuntimeState()
     return RuntimeState
 end
 
-function StateManager:GetDefaultConfig()
-    return DeepCopy(DefaultConfig)
-end
-
--- Tenta ler um arquivo específico e devolve (ok, tabelaDecodificada)
-local function TryReadConfig(path)
-    if not isfile(path) then
-        return false, nil
-    end
-
-    local readOk, raw = pcall(readfile, path)
-    if not readOk then
-        Log("Falha ao ler arquivo:", path, raw)
-        return false, nil
-    end
-
-    local decodeOk, decoded = pcall(function()
-        return HttpService:JSONDecode(raw)
-    end)
-
-    if not decodeOk or type(decoded) ~= "table" then
-        Log("Falha ao decodificar JSON de:", path)
-        return false, nil
-    end
-
-    return true, decoded
-end
-
+-- [CARREGAR CONFIG]
 function StateManager:LoadConfig()
-    if not isfile or not readfile then
-        Log("Ambiente sem suporte a isfile/readfile. Usando config padrão.")
-        return self:GetDefaultConfig()
+    if not IsFileSystemSupported() then
+        Log("Executor não suporta salvamento. Usando padrões.")
+        return DefaultConfig
     end
 
-    -- Tenta o arquivo principal primeiro
-    local ok, decoded = TryReadConfig(FILE_NAME)
-
-    -- Se falhar, tenta o backup antes de desistir
-    if not ok then
-        Log("Config principal indisponível/corrompida, tentando backup...")
-        ok, decoded = TryReadConfig(BACKUP_NAME)
+    local function RawLoad(path)
+        if isfile(path) then
+            local success, content = pcall(readfile, path)
+            if success then
+                local decodeSuccess, decoded = pcall(HttpService.JSONDecode, HttpService, content)
+                if decodeSuccess and type(decoded) == "table" then
+                    return decoded
+                end
+            end
+        end
+        return nil
     end
 
-    if not ok then
-        Log("Nenhuma config válida encontrada. Usando padrão.")
-        return self:GetDefaultConfig()
+    -- Tenta carregar principal, se falhar tenta backup
+    local loadedData = RawLoad(FILE_NAME) or RawLoad(BACKUP_NAME)
+
+    if not loadedData then
+        Log("Nenhuma configuração encontrada. Iniciando padrões.")
+        return DefaultConfig
     end
 
-    return SanitizeConfig(decoded)
+    Log("Configurações carregadas com sucesso.")
+    return MergeDefaults({}, loadedData)
 end
 
-function StateManager:SaveConfig(configTable)
-    if not writefile or not makefolder or not isfolder then
-        Log("Ambiente sem suporte a writefile/makefolder/isfolder.")
-        return false
-    end
-
-    if type(configTable) ~= "table" then
-        Log("SaveConfig recebeu um valor que não é tabela:", type(configTable))
-        return false
-    end
-
-    local sanitized = SanitizeConfig(configTable)
+-- [SALVAR CONFIG]
+function StateManager:SaveConfig(currentConfig)
+    if not IsFileSystemSupported() then return false end
 
     local success, err = pcall(function()
         if not isfolder(FOLDER_NAME) then
             makefolder(FOLDER_NAME)
         end
 
-        local encoded = HttpService:JSONEncode(sanitized)
-
-        -- Se já existe uma config válida, promove ela a backup ANTES de sobrescrever.
-        -- Assim, se a escrita nova falhar/corromper no meio do caminho, ainda existe algo salvo.
+        -- Backup do arquivo atual antes de sobrescrever
         if isfile(FILE_NAME) then
-            local currentOk, currentRaw = pcall(readfile, FILE_NAME)
-            if currentOk then
-                pcall(writefile, BACKUP_NAME, currentRaw)
-            end
+            local currentRaw = readfile(FILE_NAME)
+            writefile(BACKUP_NAME, currentRaw)
         end
 
+        -- Transforma a tabela em JSON "Bonito" (Indentado)
+        -- O 'true' no final do JSONEncode (se suportado pelo executor) ou formatação manual
+        local encoded = HttpService:JSONEncode(currentConfig)
         writefile(FILE_NAME, encoded)
     end)
 
-    if not success then
-        Log("Falha ao salvar config:", err)
+    if success then
+        Log("Configurações salvas.")
+    else
+        Log("Erro ao salvar: " .. tostring(err), true)
     end
 
     return success
+end
+
+-- [RESETAR]
+function StateManager:ResetConfig()
+    if isfile(FILE_NAME) then delfile(FILE_NAME) end
+    if isfile(BACKUP_NAME) then delfile(BACKUP_NAME) end
+    Log("Configurações resetadas para o padrão.")
+    return DefaultConfig
 end
 
 return StateManager
