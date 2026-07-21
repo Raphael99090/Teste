@@ -1,4 +1,4 @@
---[[ 1NXITER HUB - LOADER v2.4.0 (STRICT VALIDATION + TIMEOUT) ]]
+--[[ 1NXITER HUB - LOADER v2.4.0 (VERSÃO RAYFIELD) ]]
 
 if getgenv().InxiterHubLoaded then
     return warn("⚠️ O Hub já está em execução!")
@@ -20,18 +20,18 @@ local VERSION = "v2.4.0"
 local BASE_URL = "https://raw.githubusercontent.com/Raphael99090/Teste/main/"
 local MAX_RETRIES = 3
 local RETRY_DELAY = 0.6
-local GLOBAL_TIMEOUT = 30 -- segundos: evita loader travado pra sempre
+local GLOBAL_TIMEOUT = 30 
 
 local FilesToLoad = {
     Core = { "Utils", "State" },
-    UI = { "Library", "Interface" },
+    UI = { "Interface" }, -- [AJUSTE]: Removido "Library" daqui
     Features = { "AutoTrain", "Aimbot", "ESP", "SpyChat", "FreeCam", "Visuals", "PlayerMods" },
 }
 
 local Hub = { Core = {}, UI = {}, Features = {} }
 
 -- ======================================================
--- Helpers
+-- Helpers (Mantidos iguais)
 -- ======================================================
 local function SafeNotify(title, text, duration)
     pcall(function()
@@ -49,7 +49,6 @@ local function FailFatal(title, text)
     getgenv().InxiterHubLoaded = false
 end
 
--- Baixa um único arquivo com retry + backoff. Retorna (ok, code|erro)
 local function DownloadFile(folder, file)
     local url = BASE_URL .. folder .. "/" .. file .. ".lua?nocache=" .. tostring(math.random(1e6, 9e6))
     local lastError = "desconhecido"
@@ -66,7 +65,7 @@ local function DownloadFile(folder, file)
         lastError = (not success and tostring(code)) or (code == "" and "resposta vazia") or "404 not found"
 
         if attempt < MAX_RETRIES then
-            task.wait(RETRY_DELAY * attempt) -- backoff simples
+            task.wait(RETRY_DELAY * attempt)
         end
     end
 
@@ -74,9 +73,9 @@ local function DownloadFile(folder, file)
 end
 
 -- ======================================================
--- Etapa 1: Download + execução de todos os módulos
+-- Etapa 1: Download (Mantida igual)
 -- ======================================================
-local status = {} -- status[folder][file] = { ok = bool, error = string|nil }
+local status = {} 
 local pendingCount = 0
 
 for folder, list in pairs(FilesToLoad) do
@@ -111,12 +110,11 @@ for folder, list in pairs(FilesToLoad) do
     end
 end
 
--- Espera com timeout global — nunca fica preso pra sempre
 do
     local start = os.clock()
     while pendingCount > 0 do
         if os.clock() - start > GLOBAL_TIMEOUT then
-            FailFatal("TIMEOUT", "O carregamento excedeu " .. GLOBAL_TIMEOUT .. "s. Verifique sua conexão.")
+            FailFatal("TIMEOUT", "O carregamento excedeu " .. GLOBAL_TIMEOUT .. "s.")
             return
         end
         task.wait(0.1)
@@ -132,7 +130,7 @@ for folder, list in pairs(FilesToLoad) do
     for _, file in pairs(list) do
         local s = status[folder][file]
         if not s or not s.ok or type(Hub[folder][file]) ~= "table" then
-            local reason = (s and s.error) or "retornou valor inválido (esperado table)"
+            local reason = (s and s.error) or "retornou valor inválido"
             table.insert(failedList, folder .. "/" .. file .. " → " .. reason)
         end
     end
@@ -140,12 +138,12 @@ end
 
 if #failedList > 0 then
     warn("❌ Módulos com falha:\n  " .. table.concat(failedList, "\n  "))
-    FailFatal("ERRO DE INTEGRIDADE", #failedList .. " módulo(s) falharam. Veja o console (F9).")
+    FailFatal("ERRO DE INTEGRIDADE", #failedList .. " módulo(s) falharam.")
     return
 end
 
 -- ======================================================
--- Etapa 3: Inicialização da UI
+-- Etapa 3: Inicialização da UI (Rayfield)
 -- ======================================================
 local initSuccess, initError = pcall(function()
     getgenv().InxiterHubLoaded = true
@@ -153,9 +151,11 @@ local initSuccess, initError = pcall(function()
     local Config = Hub.Core.State:LoadConfig()
     local State = Hub.Core.State:GetRuntimeState()
 
+    -- [AJUSTE]: Monitorando o fechamento da Rayfield
+    -- A Rayfield por padrão cria uma ScreenGui chamada "Rayfield" ou com o nome do Hub.
     local conn
     conn = game:GetService("CoreGui").ChildRemoved:Connect(function(child)
-        if child.Name == "CrimsonUI" then
+        if child.Name == "Rayfield" or child:FindFirstChild("Main") then 
             getgenv().InxiterHubLoaded = false
             if conn then
                 conn:Disconnect()
@@ -166,6 +166,8 @@ local initSuccess, initError = pcall(function()
 
     Hub.Core.Utils:AntiAFK(State)
     Hub.Core.Utils:AutoRejoin(Config)
+    
+    -- Inicia a Interface (que agora carrega a Rayfield internamente)
     Hub.UI.Interface:Load(Hub, Config, State)
 end)
 
